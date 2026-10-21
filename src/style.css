@@ -637,3 +637,47 @@ body {
 #hud {
   background: linear-gradient(#fff7ef, var(--cream));
 }
+
+.hud-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: calc(var(--u) * 14);
+}
+
+.hud-sound {
+  font-size: calc(var(--u) * 44);
+}
+
+.hud-sound.off {
+  background: var(--beige);
+}
+
+/* Nút bật / tắt trong Cài đặt */
+.modal-panel button.toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+}
+
+.modal-panel button.toggle b {
+  min-width: calc(var(--u) * 110);
+  padding: calc(var(--u) * 6) calc(var(--u) * 18);
+  border-radius: calc(var(--u) * 30);
+  background: var(--beige);
+  text-align: center;
+}
+
+.modal-panel button.toggle.on b {
+  background: var(--pink);
+  color: #fff;
+}
+
+/* Giảm chuyển động: tắt các hiệu ứng CSS */
+.reduced-motion #toast,
+.reduced-motion #ui button,
+.reduced-motion .hud-money.flash {
+  transition: none !important;
+  animation: none !important;
+}

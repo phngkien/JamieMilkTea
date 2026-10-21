@@ -2,7 +2,7 @@
 // Game cắt ảnh này thành nhiều mảnh để làm texture.
 import { PALETTE } from '../config/palette';
 import type { Rect, ShopLayout } from '../layout';
-import { awningSvg, counterSvg, priceBoardSvg, stringLightsSvg } from './scenery';
+import { awningSvg, counterSvg, lightBulbPositions, priceBoardSvg, stringLightsSvg, windowSvg } from './scenery';
 import { foamTubSvg, plantSvg, syrupBottleSvg } from './props';
 import { place, shade, stroke, svg } from './svg';
 
@@ -70,14 +70,45 @@ function teaShelf(r: Rect): string {
     <path d="M${r.x + 16} ${r.y + 8} H${r.x + r.w - 16}" stroke="#FFFFFF" stroke-width="3" opacity="0.5"/>`;
 }
 
-/** Góc trang trí: kệ treo tường với chậu cây và bảng giá nhỏ. */
+/** Chia góc trang trí: chậu cây – cửa sổ – bảng phấn – chậu cây. */
+export function decorParts(r: Rect): { plantL: Rect; window: Rect; board: Rect; plantR: Rect } {
+  const plantW = r.h * 0.62;
+  const gap = 10;
+  const rest = r.w - plantW * 2 - gap * 4;
+  const winW = rest * 0.56;
+  const boardW = rest - winW;
+  const plantH = plantW * 1.22;
+  return {
+    plantL: { x: r.x, y: r.y + r.h - 14 - plantH, w: plantW, h: plantH },
+    window: { x: r.x + plantW + gap, y: r.y - 6, w: winW, h: r.h - 4 },
+    board: { x: r.x + plantW + winW + gap * 2, y: r.y + r.h - 14 - boardW * 0.75, w: boardW, h: boardW * 0.75 },
+    plantR: { x: r.x + r.w - plantW, y: r.y + r.h - 14 - plantH, w: plantW, h: plantH },
+  };
+}
+
+/** Vùng kính cửa sổ (không tính rèm) — mây trôi trong vùng này. */
+export function windowGlass(L: ShopLayout): Rect {
+  const w = decorParts(L.decor).window;
+  return { x: w.x + w.w * 0.22, y: w.y + 12, w: w.w * 0.56, h: w.h * 0.62 };
+}
+
+/** Vị trí các bóng đèn trên dây đèn (toạ độ thế giới). */
+export function lightBulbs(L: ShopLayout): { x: number; y: number; color: string }[] {
+  const y0 = L.awning.y + L.awning.h * 0.78;
+  return lightBulbPositions(L.viewWidth, 70, lightCount(L)).map((b) => ({ ...b, y: b.y + y0 }));
+}
+
+const lightCount = (L: ShopLayout) => Math.round(L.viewWidth / 85);
+
+/** Góc trang trí: kệ treo tường với chậu cây, cửa sổ nhỏ và bảng phấn. */
 function decor(r: Rect): string {
-  const plantW = r.h * 0.82;
-  const boardW = Math.min(r.w - plantW * 2 - 20, r.h * 1.5);
-  return `<rect x="${r.x}" y="${r.y + r.h - 14}" width="${r.w}" height="14" rx="5" fill="${PALETTE.woodDark}" ${stroke()}/>
-    ${place(plantSvg(0), r.x + 6, r.y + r.h - 14 - plantW * 1.2, plantW, plantW * 1.2)}
-    ${place(priceBoardSvg(200, 150), r.x + r.w / 2 - boardW / 2, r.y - 4, boardW, boardW * 0.75)}
-    ${place(plantSvg(1), r.x + r.w - plantW - 6, r.y + r.h - 14 - plantW * 1.2, plantW, plantW * 1.2)}`;
+  const p = decorParts(r);
+  const at = (svgStr: string, q: Rect) => place(svgStr, q.x, q.y, q.w, q.h);
+  return `${at(windowSvg(Math.round(p.window.w), Math.round(p.window.h)), p.window)}
+    <rect x="${r.x}" y="${r.y + r.h - 14}" width="${r.w}" height="14" rx="5" fill="${PALETTE.woodDark}" ${stroke()}/>
+    ${at(plantSvg(0), p.plantL)}
+    ${at(priceBoardSvg(200, 150), p.board)}
+    ${at(plantSvg(1), p.plantR)}`;
 }
 
 /** Hàng foam + chai siro (sắp mở) — vẽ mờ. */
@@ -116,7 +147,7 @@ export function shopBackgroundSvg(L: ShopLayout): string {
     L.kind === 'landscape'
       ? [z.brew, z.topping].map((r) => `<rect x="${r.x - 5}" y="${r.y}" width="10" height="${r.h}" fill="${PALETTE.woodDark}" ${stroke(2)}/>`).join('')
       : '',
-    place(stringLightsSvg(W, 70, Math.round(W / 85)), 0, L.awning.y + awningH * 0.78, W, 70),
+    place(stringLightsSvg(W, 70, lightCount(L)), 0, L.awning.y + awningH * 0.78, W, 70),
     place(awningSvg(W, awningH, L.kind === 'portrait' ? 90 : 80), 0, L.awning.y, W, awningH + 10),
     decor(L.decor),
     place(counterSvg(L.counterStrip.w, 100), L.counterStrip.x, L.counterStrip.y, L.counterStrip.w, L.counterStrip.h + 10, true),

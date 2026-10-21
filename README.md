@@ -91,6 +91,8 @@ Vuốt nền để cuộn; thanh dưới cùng có nút nhảy nhanh **Quầy tr
 - Một ngày dài khoảng 6 phút (08:00 → 20:00). Hết giờ thì không nhận khách mới; phục vụ xong khách cuối thì hiện bảng **"Hết ngày N"**: doanh thu, chi phí, lãi, két.
 - Lãi = doanh thu − nguyên liệu của các ly đã bán − hao phí (ly đổ / hỏng) − tiền thuê tiệm. Tiền nhập hàng nằm ở phần **Két**.
 
+**Âm thanh và hình động:** game có tiếng rót (cao dần khi ly đầy), xúc đá, ép nắp, chuông khách vào, tiền, nhạc nền nhẹ. Âm thanh chỉ bắt đầu sau lần chạm đầu tiên (luật của trình duyệt; trên iPhone nhớ tắt chế độ im lặng). Nút 🔊 trên cùng bên phải để tắt/bật tiếng; trong **⚙ Cài đặt** có tắt riêng **Nhạc nền** và bật **Giảm chuyển động** (bớt hình động). Âm lượng, nhịp và giai điệu nhạc nền chỉnh trong `src/config/audio.ts`.
+
 **Lưu game:** game tự lưu trên máy (khi giao ly, nhập hàng, cuối ngày, khi đóng tab). Mở lại sẽ chơi tiếp ở lúc mở cửa (08:00) của ngày đang chơi. Muốn chơi lại từ đầu: nút **⚙** → **Chơi lại từ đầu** (hỏi lại 2 lần).
 
 ## 5. Chỉnh số liệu cân bằng
@@ -102,6 +104,8 @@ Vuốt nền để cuộn; thanh dưới cùng có nút nhảy nhanh **Quầy tr
 | Giá bán trà / topping | `src/config/teas.ts`, `src/config/toppings.ts` |
 | Phụ thu size L, vạch xanh, tốc độ rót | `src/config/cup.ts` |
 | Cách chấm điểm | `src/config/scoring.ts` |
+| Âm lượng, nhạc nền | `src/config/audio.ts` |
+| Khách (tên, tóc, trang phục) | `src/config/characters.ts` |
 
 Mẹo khi chạy `npm run dev`: mở Console của trình duyệt (F12) và gõ `jamie.adapter.getState()` để xem toàn bộ số liệu đang chạy.
 
@@ -109,7 +113,9 @@ Mẹo khi chạy `npm run dev`: mở Console của trình duyệt (F12) và gõ 
 
 - `src/config/` — số liệu game (giá, trà, topping, độ khó, chữ tiếng Việt). Muốn chỉnh cân bằng game thì sửa ở đây.
 - `src/core/` — luật chơi (không phụ thuộc hình ảnh), có test trong `tests/`.
-- `src/scenes/`, `src/entities/` — vẽ cảnh và các vật thể (Phaser).
+- `src/art/` — mọi hình vẽ bằng code (SVG): khách, ly, bình, khay, nền tiệm. Xem nhanh tại `preview.html`.
+- `src/scenes/`, `src/entities/` — dựng cảnh, vật thể, hình động (Phaser).
+- `src/audio/` — âm thanh và nhạc nền tổng hợp bằng Web Audio.
 - `src/layout/` — vị trí mọi vật cho màn hình dọc và ngang.
 - `src/ui/` — HUD, thanh nút, thẻ hướng dẫn (HTML/CSS).
 - `src/net/` — `LocalAdapter` cho chơi một mình (sau này thêm chơi nhiều người).

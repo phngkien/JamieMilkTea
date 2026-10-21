@@ -12,6 +12,8 @@ export class TeaDispenser extends Prop {
   readonly locked: boolean;
   /** Vị trí miệng vòi (toạ độ thế giới) — dòng trà chảy ra từ đây. */
   readonly spout: { x: number; y: number };
+  /** Đỉnh nắp bình (toạ độ thế giới) — hơi nóng bốc lên từ đây. */
+  readonly lidTop: { x: number; y: number };
   private glow: Phaser.GameObjects.Graphics;
   private pouring = false;
 
@@ -34,6 +36,7 @@ export class TeaDispenser extends Prop {
     });
     this.add(fitText(name, 80 * s, 14, false));
     this.spout = { x: this.x, y: this.y + imgTop + 286 * s };
+    this.lidTop = { x: this.x, y: this.y + imgTop };
     if (locked) {
       const lock = scene.add.image(0, imgTop + 70 * s, lockArt(L).key);
       lock.setDisplaySize(a.w * 0.36, a.w * 0.38);

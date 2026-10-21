@@ -4,7 +4,9 @@ import { LOW_STOCK_AT, STOCK, getStockDef, stockIdOfTea, stockIdOfTopping } from
 import { SETTINGS_TEXT, STOCK_TEXT, fill } from '../config/strings';
 import type { GameEvent, ShopState } from '../core/types';
 import type { ShopLayout } from '../layout';
+import type { Sfx } from '../audio/Sfx';
 import type { NetAdapter } from '../net/NetAdapter';
+import type { Settings } from '../save/schema';
 import { Hud } from './hud';
 import { Modal } from './modal';
 import { QuickNav, type Section } from './quickNav';
@@ -19,6 +21,10 @@ export interface OverlayHooks {
   onTutorial: () => void;
   /** Xóa bản lưu và chơi lại từ đầu. */
   onReset: () => void;
+  /** Đọc / đổi cài đặt (âm thanh, nhạc, giảm chuyển động) — main lưu lại. */
+  getSettings: () => Settings;
+  onSettings: (change: Partial<Settings>) => void;
+  sfx: Sfx;
 }
 
 export class Overlay {
@@ -42,7 +48,12 @@ export class Overlay {
 
   constructor(root: HTMLElement) {
     this.root = root;
-    this.hud = new Hud(root.querySelector('#hud')!, () => this.openSettings(), () => this.openStock());
+    this.hud = new Hud(
+      root.querySelector('#hud')!,
+      () => this.openSettings(),
+      () => this.openStock(),
+      () => this.toggleSound(),
+    );
     this.nav = new QuickNav(root.querySelector('#quicknav')!, (s) => this.onJump(s), () => this.openStock());
     this.toast = new Toast(root.querySelector('#toast')!);
     this.tutorial = new TutorialCard(root.querySelector('#tutorial')!, () => this.onSkipTutorial());
@@ -55,6 +66,18 @@ export class Overlay {
     this.hooks = hooks;
     adapter.subscribe((state, events) => this.onState(state, events));
     this.onState(adapter.getState(), []);
+    this.hud.setSound(!hooks.getSettings().muted);
+    // Tiếng "tách" nhẹ khi bấm nút trên giao diện
+    this.root.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('button')) hooks.sfx.click();
+    });
+  }
+
+  private toggleSound(): void {
+    if (!this.hooks) return;
+    const muted = !this.hooks.getSettings().muted;
+    this.hooks.onSettings({ muted });
+    this.hud.setSound(!muted);
   }
 
   private onState(state: ShopState, events: GameEvent[]): void {
@@ -98,9 +121,12 @@ export class Overlay {
       if (now === 0) alert = 'out';
       else if (now <= LOW_STOCK_AT && alert === 'none') alert = 'low';
       if (!prev || now >= before) continue;
-      if (now === 0) this.toast.show(fill(STOCK_TEXT.outWarning, { name: def.name }), 'warn', 2500);
-      else if (now <= LOW_STOCK_AT && before > LOW_STOCK_AT) {
+      if (now === 0) {
+        this.toast.show(fill(STOCK_TEXT.outWarning, { name: def.name }), 'warn', 2500);
+        this.hooks?.sfx.ting();
+      } else if (now <= LOW_STOCK_AT && before > LOW_STOCK_AT) {
         this.toast.show(fill(STOCK_TEXT.lowWarning, { name: def.name }), 'warn', 2500);
+        this.hooks?.sfx.ting();
       }
     }
     this.nav.setStockAlert(alert);
@@ -130,9 +156,18 @@ export class Overlay {
   }
 
   openSettings(step: 0 | 1 | 2 = 0): void {
-    if (this.modal.current === 'summary') return;
-    this.modal.open('settings', renderSettings(step), (action) => {
+    if (this.modal.current === 'summary' || !this.hooks) return;
+    const hooks = this.hooks;
+    this.modal.open('settings', renderSettings(step, hooks.getSettings()), (action) => {
+      const s = hooks.getSettings();
       if (action === 'close' || action === 'cancel') this.modal.close();
+      else if (action === 'sound' || action === 'music' || action === 'motion') {
+        if (action === 'sound') hooks.onSettings({ muted: !s.muted });
+        if (action === 'music') hooks.onSettings({ musicOn: !s.musicOn });
+        if (action === 'motion') hooks.onSettings({ reducedMotion: !s.reducedMotion });
+        this.hud.setSound(!hooks.getSettings().muted);
+        this.modal.update(renderSettings(0, hooks.getSettings()));
+      }
       else if (action === 'tutorial') {
         this.hooks?.onTutorial();
         this.modal.close();

@@ -141,6 +141,11 @@ export const SUMMARY_TEXT = {
 export const SETTINGS_TEXT = {
   title: 'Cài đặt',
   tutorial: 'Bật lại hướng dẫn',
+  sound: 'Âm thanh',
+  music: 'Nhạc nền',
+  reducedMotion: 'Giảm chuyển động',
+  on: 'Bật',
+  off: 'Tắt',
   tutorialOn: 'Đã bật lại hướng dẫn cho khách tiếp theo',
   reset: 'Chơi lại từ đầu',
   resetConfirm1: 'Chơi lại từ đầu sẽ xóa hết tiến trình: ngày, két, kho, món đã mở. Bạn chắc chứ?',

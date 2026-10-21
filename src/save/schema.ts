@@ -12,7 +12,11 @@ export const SCHEMA_VERSION = 1;
 
 export interface Settings {
   tutorialDone: boolean;
+  /** Tắt toàn bộ âm thanh. */
   muted: boolean;
+  /** Nhạc nền bật (tắt riêng được). */
+  musicOn: boolean;
+  /** Giảm chuyển động (bớt hình động). */
   reducedMotion: boolean;
 }
 
@@ -39,7 +43,7 @@ export interface SaveData {
 }
 
 export function defaultSettings(): Settings {
-  return { tutorialDone: false, muted: false, reducedMotion: false };
+  return { tutorialDone: false, muted: false, musicOn: true, reducedMotion: false };
 }
 
 export function createSave(state: ShopState, settings: Settings, now = Date.now()): SaveData {
@@ -146,6 +150,7 @@ function normalize(data: Record<string, unknown>, version: number): SaveData | n
       ...defaultSettings(),
       ...(typeof settings.tutorialDone === 'boolean' ? { tutorialDone: settings.tutorialDone } : {}),
       ...(typeof settings.muted === 'boolean' ? { muted: settings.muted } : {}),
+      ...(typeof settings.musicOn === 'boolean' ? { musicOn: settings.musicOn } : {}),
       ...(typeof settings.reducedMotion === 'boolean' ? { reducedMotion: settings.reducedMotion } : {}),
     },
   };

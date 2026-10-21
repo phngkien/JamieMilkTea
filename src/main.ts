@@ -1,6 +1,7 @@
 // Điểm khởi động: đọc bản lưu, tạo logic (LocalAdapter), lớp DOM overlay và game Phaser.
 import Phaser from 'phaser';
 import './style.css';
+import { Sfx } from './audio/Sfx';
 import { PALETTE } from './config/palette';
 import { SETTINGS_TEXT, fill } from './config/strings';
 import type { GameEvent } from './core/types';
@@ -26,6 +27,11 @@ async function start(): Promise<void> {
   const settings: Settings = saved?.settings ?? defaultSettings();
   const initial = saved ? restoreShop(saved) : createShopState(Math.floor(Math.random() * 2 ** 31), 1);
   const adapter = new LocalAdapter(initial);
+  const sfx = new Sfx(settings.muted, settings.musicOn);
+  // Trình duyệt chỉ cho phát tiếng sau lần chạm đầu tiên
+  const unlockAudio = () => sfx.unlock();
+  document.addEventListener('pointerdown', unlockAudio, { capture: true });
+  document.addEventListener('keydown', unlockAudio, { capture: true });
 
   // Đang xóa để chơi lại thì không lưu nữa (nếu không, lúc trang tải lại sẽ ghi đè bản vừa xóa)
   let resetting = false;
@@ -37,7 +43,9 @@ async function start(): Promise<void> {
   });
   // Lưu khi ẩn tab / đóng trang
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') persist();
+    const hidden = document.visibilityState === 'hidden';
+    if (hidden) persist();
+    sfx.suspend(hidden);
   });
   window.addEventListener('pagehide', persist);
 
@@ -67,6 +75,8 @@ async function start(): Promise<void> {
   // Giảm chuyển động: theo cài đặt trong game hoặc cài đặt của máy
   const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   game.registry.set('reducedMotion', settings.reducedMotion || prefersReduced);
+  game.registry.set('sfx', sfx);
+  document.documentElement.classList.toggle('reduced-motion', settings.reducedMotion || prefersReduced);
   // Hướng dẫn xong / bỏ qua thì lưu lại để lần sau không hiện nữa
   game.registry.events.on('changedata-tutorialDone', (_parent: unknown, value: boolean) => {
     settings.tutorialDone = value;
@@ -81,6 +91,18 @@ async function start(): Promise<void> {
   game.registry.set('reducedMotion', settings.reducedMotion || prefersReduced);
       game.registry.set('tutorialDone', false);
     },
+    getSettings: () => settings,
+    onSettings: (change) => {
+      Object.assign(settings, change);
+      if (change.muted !== undefined) sfx.setMuted(change.muted);
+      if (change.musicOn !== undefined) sfx.setMusic(change.musicOn);
+      if (change.reducedMotion !== undefined) {
+        game.registry.set('reducedMotion', change.reducedMotion || prefersReduced);
+        document.documentElement.classList.toggle('reduced-motion', change.reducedMotion || prefersReduced);
+      }
+      persist();
+    },
+    sfx,
     onReset: () => {
       resetting = true;
       void repo.clear().then(() => window.location.reload());

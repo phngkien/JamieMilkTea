@@ -49,10 +49,20 @@ export function windowSvg(w: number, h: number): string {
   );
 }
 
+export const LIGHT_COLORS = [PALETTE.gold, PALETTE.pink, PALETTE.mint, '#FFF4C7'];
+
+/** Vị trí tâm các bóng đèn trong khung w×h của dây đèn (dùng để làm đèn lấp lánh). */
+export function lightBulbPositions(w: number, h: number, count: number): { x: number; y: number; color: string }[] {
+  return Array.from({ length: count }, (_, i) => {
+    const t = (i + 0.5) / count;
+    return { x: t * w, y: 10 + Math.sin(t * Math.PI) * (h - 30) + 14, color: LIGHT_COLORS[i % LIGHT_COLORS.length] };
+  });
+}
+
 /** Dây đèn nhỏ lấp lánh. */
 export function stringLightsSvg(w: number, h = 60, count = 9): string {
   let bulbs = '';
-  const colors = [PALETTE.gold, PALETTE.pink, PALETTE.mint, '#FFF4C7'];
+  const colors = LIGHT_COLORS;
   for (let i = 0; i < count; i++) {
     const t = (i + 0.5) / count;
     const x = t * w;

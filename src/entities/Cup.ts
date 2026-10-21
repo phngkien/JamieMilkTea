@@ -91,16 +91,26 @@ export class Cup extends Phaser.GameObjects.Container {
 
   /**
    * Vẽ lại ly. `displayFill` là mực trà đang hiển thị (có thể cao hơn state khi đang giữ rót).
-   * `pouring`: đang rót → mặt nước gợn mạnh hơn. `blinkGreen`: vạch xanh nhấp nháy.
+   * `pouringTea`: loại trà đang rót dở trên máy này (ly rỗng chưa có trà trong state) → mặt nước gợn mạnh hơn.
+   * `blinkGreen`: vạch xanh nhấp nháy.
    */
-  render(cup: CupState, displayFill: number, blinkGreen: boolean, pouring: boolean, time: number, animate: boolean): void {
+  render(
+    cup: CupState,
+    displayFill: number,
+    blinkGreen: boolean,
+    pouringTea: string | null,
+    time: number,
+    animate: boolean,
+  ): void {
+    const pouring = pouringTea !== null;
+    const teaId = cup.tea ?? pouringTea;
     const H = this.bodyH;
     // Nước trà + gợn sóng mặt nước (vẽ mỗi khung hình khi có trà)
     const g = this.liquid;
     g.clear();
     const fill = Math.min(displayFill, OVERFLOW_AT);
-    if (cup.tea && fill > 0.005) {
-      const color = getTea(cup.tea).color;
+    if (teaId && fill > 0.005) {
+      const color = getTea(teaId).color;
       const surfaceY = -fill * H;
       const half = this.halfAt(fill);
       const amp = animate ? (pouring ? 5 : 1.6) : 0;

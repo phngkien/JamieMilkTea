@@ -17,6 +17,8 @@ import { TOPPINGS } from '../config/toppings';
 import { describeCupStatus } from '../core/brewing';
 import { formatMoney } from '../core/economy';
 import type { Customer as CustomerData, CupState, GameEvent, ShopState } from '../core/types';
+import type { Sfx } from '../audio/Sfx';
+import { Ambience } from '../entities/Ambience';
 import { Cup } from '../entities/Cup';
 import { Customer } from '../entities/Customer';
 import { CupStack } from '../entities/CupStack';
@@ -63,6 +65,8 @@ export class ShopScene extends Phaser.Scene {
   /** Hệ số cỡ chữ trên canvas: bố cục ngang chữ nhỏ hơn. */
   private ts = 1;
   private scroll!: ScrollController;
+  private sfx!: Sfx;
+  private ambience!: Ambience;
   /** Texture đã tạo xong và cảnh đã dựng. */
   private ready = false;
 
@@ -112,6 +116,7 @@ export class ShopScene extends Phaser.Scene {
     this.adapter = this.registry.get('adapter') as NetAdapter;
     this.overlay = this.registry.get('overlay') as Overlay;
     this.layout = this.registry.get('layout') as ShopLayout;
+    this.sfx = this.registry.get('sfx') as Sfx;
     this.ts = textScaleOf(this.layout);
     this.resetFields();
 
@@ -147,6 +152,8 @@ export class ShopScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.unsubscribe?.();
       this.unsubscribe = null;
+      // Dựng lại cảnh giữa lúc đang rót thì tắt tiếng rót
+      this.sfx.pourStop();
     });
     // Vẽ ngay khách đang có (không chạy hiệu ứng đi vào khi đổi bố cục)
     this.syncView(this.adapter.getState(), false);
@@ -265,6 +272,8 @@ export class ShopScene extends Phaser.Scene {
     this.queue = new QueueStrip(this, L);
     this.bubble = new OrderBubble(this, L.bubble, this.ts).setDepth(DEPTH.customer);
     this.stream = this.add.graphics().setDepth(DEPTH.stream);
+    const steamFrom = this.dispensers.filter((d) => !d.locked).map((d) => d.lidTop);
+    this.ambience = new Ambience(this, L, steamFrom, DEPTH.props);
     this.highlight = this.add.graphics().setDepth(DEPTH.highlight);
   }
 
@@ -326,6 +335,7 @@ export class ShopScene extends Phaser.Scene {
     }
     this.pour = { cupId: cup.id, tea: d.tea.id, amount: 0, pointerId: pointer.id, dispenser: d };
     d.setPouring(true);
+    this.sfx.pourStart();
   }
 
   /** Thả tay: gửi lượng trà vừa rót (cách làm này giúp sau này đồng bộ mạng mượt). */
@@ -335,6 +345,7 @@ export class ShopScene extends Phaser.Scene {
     this.pour = null;
     pour.dispenser.setPouring(false);
     this.stream.clear();
+    this.sfx.pourStop();
     if (pour.amount > 0) {
       this.adapter.dispatch({ type: 'POUR_TEA', cupId: pour.cupId, tea: pour.tea, amount: pour.amount });
     }
@@ -428,6 +439,7 @@ export class ShopScene extends Phaser.Scene {
       switch (e.type) {
         case 'rejected':
           this.overlay.toast.show(REJECT_TEXT[e.reason], 'warn');
+          this.sfx.nope();
           if (e.action === 'TAP_SYRUP') this.syrup.refuse();
           else if (e.action === 'SCOOP_ICE') this.ice.refuse();
           else if (e.action === 'ADD_TOPPING') this.lastJar?.refuse();
@@ -435,33 +447,47 @@ export class ShopScene extends Phaser.Scene {
           break;
         case 'cupRuined':
           this.overlay.toast.show(EVENT_TEXT.ruined, 'warn', 2500);
+          this.sfx.trash();
           if (!this.reducedMotion) this.cameras.main.shake(200, 0.004);
+          break;
+        case 'cupPicked':
+          this.sfx.pick();
           break;
         case 'syrupTapped':
           this.syrup.pump();
+          this.sfx.drip();
+          this.dropSyrup();
           break;
         case 'iceScooped':
           this.ice.scoop();
+          this.sfx.ice();
           break;
         case 'toppingAdded':
           this.lastJar?.scoop();
+          this.sfx.plop();
           break;
         case 'cupSealed':
           this.sealer.stamp();
+          this.sfx.seal();
           this.overlay.toast.show(EVENT_TEXT.sealed);
           break;
         case 'cupDiscarded':
           this.overlay.toast.show(EVENT_TEXT.discarded);
+          this.sfx.trash();
           break;
         case 'served':
           this.moodOverride = { id: e.customerId, mood: e.score.total >= 50 ? 'happy' : 'sad' };
           this.showScorePopup(e.score.total, e.score.stars, e.money);
           if (e.score.total >= 80) this.worker.cheer();
+          this.sfx.coin();
+          if (e.score.total >= 90) this.time.delayedCall(250, () => this.sfx.joy());
+          else if (e.score.total < 50) this.time.delayedCall(250, () => this.sfx.sad());
           break;
         case 'customerLeft':
           if (e.reason === 'impatient') {
             this.moodOverride = { id: e.customerId, mood: 'sad' };
             this.overlay.toast.show(fill(EVENT_TEXT.customerLeft, { name: e.name }), 'warn', 2800);
+            this.sfx.sad();
           }
           if (e.customerId === this.registry.get('tutorialTarget')) this.finishTutorial();
           break;
@@ -470,8 +496,12 @@ export class ShopScene extends Phaser.Scene {
           this.registry.set('scrollY', this.scroll.scrollY);
           this.scene.restart();
           return;
+        case 'customerArrived':
+          this.sfx.bell();
+          break;
         case 'dayStarted':
           this.scroll.scrollTo(0);
+          this.sfx.fanfare();
           break;
         default:
           break;
@@ -479,6 +509,29 @@ export class ShopScene extends Phaser.Scene {
     }
     // Ly bị giao / bỏ trong lúc đang kéo thì thôi kéo
     if (this.dragPointer && !state.cups.some((c) => c.id === this.cupView?.cupId)) this.dragPointer = null;
+  }
+
+  /** Giọt nước đường rơi từ vòi bơm xuống ly. */
+  private dropSyrup(): void {
+    if (this.reducedMotion || !this.cupView) return;
+    const cup = this.currentCup();
+    if (!cup) return;
+    const L = this.layout;
+    const surface = this.cupView.y - Math.max(0.1, cup.fill) * L.cupHeight[cup.size];
+    const drop = this.add.graphics().setDepth(DEPTH.stream);
+    drop.fillStyle(0xe7a74a, 1);
+    drop.fillCircle(0, 0, 9);
+    drop.fillTriangle(-8, -2, 8, -2, 0, -18);
+    drop.lineStyle(2, hex(PALETTE.outline), 0.8);
+    drop.strokeCircle(0, 0, 9);
+    drop.setPosition(this.cupView.x + 14, L.board.y - 10);
+    this.tweens.add({
+      targets: drop,
+      y: surface,
+      duration: 320,
+      ease: 'Quad.easeIn',
+      onComplete: () => drop.destroy(),
+    });
   }
 
   /** Bảng điểm bật ra trên đầu khách: điểm, sao bật lần lượt, tiền; đồng xu bay lên HUD. */
@@ -558,6 +611,7 @@ export class ShopScene extends Phaser.Scene {
     this.updatePour(state, delta);
     this.updateDrag(delta);
     this.syncView(state, true, time);
+    this.ambience.update(time, this.reducedMotion);
     this.updateTutorial(state, time);
     this.updateNav();
     this.updateStock(state);
@@ -581,9 +635,12 @@ export class ShopScene extends Phaser.Scene {
       this.pour = null;
       pour.dispenser.setPouring(false);
       this.stream.clear();
+      this.sfx.pourStop();
       return;
     }
     pour.amount += (SIZES[cup.size].pourPerSecond * delta) / 1000;
+    // Tiếng rót cao dần theo mực nước
+    this.sfx.pourLevel(cup.fill + pour.amount);
     // Tràn: gửi ngay để logic đánh dấu ly hỏng
     if (cup.fill + pour.amount > OVERFLOW_AT) this.finishPour();
   }
@@ -678,7 +735,8 @@ export class ShopScene extends Phaser.Scene {
       const inGreen = displayFill >= size.greenMin && displayFill <= size.greenMax;
       // Vạch xanh nhấp nháy khi đang rót và mực trà nằm trong vùng xanh
       const blink = pouring > 0 && inGreen && Math.floor(time / 120) % 2 === 0;
-      this.cupView.render(cup, displayFill, blink, pouring > 0, time, animate && !this.reducedMotion);
+      const pouringTea = pouring > 0 && this.pour ? this.pour.tea : null;
+      this.cupView.render(cup, displayFill, blink, pouringTea, time, animate && !this.reducedMotion);
       this.drawStream(cup, displayFill, time);
     }
 

@@ -12,7 +12,9 @@ export class Hud {
   private rating: HTMLElement;
   private lastKey = '';
 
-  constructor(root: HTMLElement, onSettings: () => void, onStock: () => void) {
+  private sound: HTMLButtonElement;
+
+  constructor(root: HTMLElement, onSettings: () => void, onStock: () => void, onSound: () => void) {
     root.innerHTML = `
       <div class="hud-left">
         <button type="button" class="hud-btn hud-settings" aria-label="Cài đặt">⚙</button>
@@ -27,8 +29,11 @@ export class Hud {
         <div class="hud-money"></div>
       </div>
       <div class="hud-right">
-        <div class="hud-stars"></div>
-        <div class="hud-rating"></div>
+        <div class="hud-rating-box">
+          <div class="hud-stars"></div>
+          <div class="hud-rating"></div>
+        </div>
+        <button type="button" class="hud-btn hud-sound" aria-label="Âm thanh"></button>
       </div>`;
     this.day = root.querySelector('.hud-day')!;
     this.clock = root.querySelector('.hud-clock')!;
@@ -40,6 +45,8 @@ export class Hud {
     stock.textContent = STOCK_TEXT.title;
     stock.addEventListener('click', onStock);
     root.querySelector('.hud-settings')!.addEventListener('click', onSettings);
+    this.sound = root.querySelector<HTMLButtonElement>('.hud-sound')!;
+    this.sound.addEventListener('click', onSound);
   }
 
   update(state: ShopState): void {
@@ -58,6 +65,12 @@ export class Hud {
     this.rating.textContent = state.ratingCount
       ? fill(UI_TEXT.rating, { avg: formatRating(state.ratingSum, state.ratingCount), count: state.ratingCount })
       : UI_TEXT.noRating;
+  }
+
+  /** Biểu tượng loa: bật / tắt tiếng. */
+  setSound(on: boolean): void {
+    this.sound.textContent = on ? '🔊' : '🔇';
+    this.sound.classList.toggle('off', !on);
   }
 
   /** Số tiền nhảy nhẹ khi vừa được cộng. */
