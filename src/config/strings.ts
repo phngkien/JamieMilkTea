@@ -103,6 +103,7 @@ export const TUTORIAL_TEXT = {
   topping: 'Bước {k}: chạm hũ {name} {times} lần',
   seal: 'Bước {k}: kéo ly vào máy ép nắp',
   serve: 'Bước {k}: kéo ly tới khách hoặc chạm nút Giao',
+  ruined: 'Ly bị tràn rồi: kéo ly vào thùng rác rồi làm lại nhé',
 };
 
 /** Thay {key} trong mẫu câu bằng giá trị. */

@@ -1,0 +1,15 @@
+{
+  "name": "Jamie's Milk Tea",
+  "short_name": "Jamie's Tea",
+  "description": "Game quản lý và pha chế tiệm trà sữa",
+  "lang": "vi",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F8EBDD",
+  "theme_color": "#F28CA8",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
