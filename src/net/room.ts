@@ -29,6 +29,34 @@ export interface RoomSession {
 
 export type JoinError = 'notFound' | 'full' | 'offline';
 
+/**
+ * Giành một trong 4 "ghế" của phòng (rooms/{mã}/slots/1..4). Luật bảo mật chỉ cho người có ghế
+ * ghi thông tin người chơi — nhờ vậy phòng tối đa 4 người. Đã có ghế từ trước (vào lại) thì giữ ghế đó.
+ */
+export async function claimSeat(db: Database, code: string, uid: string): Promise<boolean> {
+  const snap = await get(ref(db, `rooms/${code}/slots`)).catch(() => null);
+  const seats = (snap?.val() ?? {}) as Record<string, string>;
+  if (Object.values(seats).includes(uid)) return true;
+  for (let n = 1; n <= ROOM.maxPlayers; n++) {
+    if (seats[n]) continue;
+    // Transaction: hai người cùng giành một ghế thì chỉ một người được
+    const result = await runTransaction(ref(db, `rooms/${code}/slots/${n}`), (current) => (current ? undefined : uid)).catch(
+      () => null,
+    );
+    if (result?.committed) return true;
+  }
+  return false;
+}
+
+/** Trả ghế khi rời phòng. */
+export async function releaseSeat(db: Database, code: string, uid: string): Promise<void> {
+  const snap = await get(ref(db, `rooms/${code}/slots`)).catch(() => null);
+  const seats = (snap?.val() ?? {}) as Record<string, string>;
+  for (const [n, owner] of Object.entries(seats)) {
+    if (owner === uid) await remove(ref(db, `rooms/${code}/slots/${n}`)).catch(() => undefined);
+  }
+}
+
 /** Khởi tạo Firebase và đăng nhập ẩn danh (một lần). */
 export async function connect(): Promise<{ db: Database; uid: string }> {
   const app = getApps()[0] ?? initializeApp(firebaseConfig);
@@ -67,6 +95,7 @@ export async function createRoom(name: string, shop: ShopState): Promise<RoomSes
       return { hostUid: uid, ownerUid: uid, createdAt: Date.now(), status: 'lobby', version: 1 };
     });
     if (!result.committed) continue;
+    await claimSeat(db, code, uid);
     await set(ref(db, `rooms/${code}/players/${uid}`), {
       name,
       station: null,
@@ -94,6 +123,8 @@ export async function joinRoom(code: string, name: string): Promise<RoomSession 
   const metaSnap = await get(ref(db, `rooms/${code}/meta`)).catch(() => null);
   if (!metaSnap?.exists()) return 'notFound';
   const meta = metaSnap.val() as { ownerUid: string };
+  // Hết ghế (đủ 4 người) thì không vào được
+  if (!(await claimSeat(db, code, uid))) return 'full';
   const playerRef = ref(db, `rooms/${code}/players/${uid}`);
   try {
     // Đã từng ở phòng này (vào lại sau khi mất mạng) thì giữ nguyên thông tin cũ
@@ -101,7 +132,6 @@ export async function joinRoom(code: string, name: string): Promise<RoomSession 
     if (existing?.exists()) {
       await update(playerRef, { name, online: true, lastSeen: serverTimestamp() });
     } else {
-      // Luật bảo mật chặn khi phòng đã đủ 4 người
       await set(playerRef, {
         name,
         station: null,

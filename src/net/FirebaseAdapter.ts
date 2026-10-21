@@ -29,7 +29,7 @@ import { canPerform, stationOwners, type StationOwners } from '../core/stations'
 import type { Action, GameEvent, ShopState, Station } from '../core/types';
 import { MAX_TICK_MS } from './LocalAdapter';
 import type { EmoteKind, LivePour, NetAdapter, PlayerInfo, RoomInfo, StateListener } from './NetAdapter';
-import type { RoomSession } from './room';
+import { claimSeat, releaseSeat, type RoomSession } from './room';
 import { clean, decodeState, encodeState } from './serialize';
 
 /** Sự kiện host gửi kèm state: ai gây ra (uid) và thao tác thứ mấy của người đó (seq). */
@@ -237,6 +237,7 @@ export class FirebaseAdapter implements NetAdapter {
         }
         await remove(this.ref(`live/${this.localId}`));
         await remove(this.ref(`players/${this.localId}`));
+        await releaseSeat(this.session.db, this.code, this.localId);
       }
     } catch {
       // Mất mạng lúc rời: onDisconnect sẽ báo offline, host sẽ nhả trạm sau
@@ -269,7 +270,10 @@ export class FirebaseAdapter implements NetAdapter {
         if (this.connected) {
           void onDisconnect(me).update({ online: false, lastSeen: serverTimestamp() });
           void onDisconnect(this.ref(`live/${this.localId}`)).remove();
-          void update(me, { online: true, lastSeen: serverTimestamp() }).catch(() => undefined);
+          // Có mạng lại: giữ (hoặc giành lại) ghế rồi báo online
+          void claimSeat(db, this.code, this.localId)
+            .then((ok) => (ok ? update(me, { online: true, lastSeen: serverTimestamp() }) : undefined))
+            .catch(() => undefined);
         }
         this.notifyRoom();
       }),
@@ -445,12 +449,18 @@ export class FirebaseAdapter implements NetAdapter {
     // Host: nhả trạm của người offline quá lâu
     if (this.isHost) {
       for (const p of this.players) {
-        if (!p.online && p.station && p.uid !== this.localId) {
+        if (!p.online && p.uid !== this.localId) {
           const since = this.offlineSince.get(p.uid) ?? now;
           this.offlineSince.set(p.uid, since);
-          if (now - since > ROOM.releaseStationAfterMs) void update(this.ref(`players/${p.uid}`), { station: null });
+          // Chỉ ghi một lần cho mỗi việc (không ghi lại mỗi giây)
+          if (p.station && now - since > ROOM.releaseStationAfterMs) void update(this.ref(`players/${p.uid}`), { station: null });
+          if (now - since > ROOM.freeSeatAfterMs && !this.freedSeats.has(p.uid)) {
+            this.freedSeats.add(p.uid);
+            void releaseSeat(this.session.db, this.code, p.uid);
+          }
         } else {
           this.offlineSince.delete(p.uid);
+          this.freedSeats.delete(p.uid);
         }
       }
     }
@@ -472,6 +482,7 @@ export class FirebaseAdapter implements NetAdapter {
   }
 
   private offlineSince = new Map<string, number>();
+  private freedSeats = new Set<string>();
 
   // ───────────── Phát cho giao diện ─────────────
 

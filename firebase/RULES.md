@@ -6,9 +6,10 @@ Cấu hình Firebase trong game là công khai, ai cũng xem được. Thứ gi�
 
 | Đường dẫn | Ai được đọc | Ai được ghi | Kiểm tra dữ liệu |
 |---|---|---|---|
-| `rooms/{mã}` (cả phòng) | Chỉ thành viên phòng | **Chỉ được xóa cả phòng**: chủ tiệm (dọn phòng cũ quá 24 giờ) hoặc người cuối cùng còn trong phòng | — |
+| `rooms/{mã}` (cả phòng) | Chỉ thành viên phòng | **Chỉ được xóa cả phòng**: chủ tiệm (dọn phòng cũ quá 24 giờ) hoặc người cuối cùng còn trong phòng (mọi ghế khác đều trống) | — |
+| `rooms/{mã}/slots/1..4` (4 ghế) | Mọi người đã đăng nhập (để biết còn ghế trống không) | Giành một ghế **còn trống** bằng uid của chính mình; trả ghế của mình; host được trả ghế của người mất mạng quá lâu | Chỉ có ghế 1, 2, 3, 4 → **tối đa 4 người** |
 | `rooms/{mã}/meta` | Mọi người đã đăng nhập (để biết mã phòng có tồn tại không trước khi vào) | Tạo mới: chỉ khi chưa có, và người tạo phải tự ghi mình là host + chủ tiệm. Sửa: thành viên phòng (để chuyển host, mở cửa) | `hostUid` phải là một thành viên; **không ai đổi được `ownerUid`**; `status` chỉ là `lobby` hoặc `playing`; không cho thêm trường lạ |
-| `rooms/{mã}/players/{uid}` | Thành viên | Mỗi người **chỉ ghi thông tin của chính mình**. Vào mới chỉ khi phòng **còn dưới 4 người** (người thứ 5 bị chặn). Host được sửa người khác (để nhả trạm của người mất mạng lâu) nhưng không được xóa họ | Tên 1–16 ký tự; trạm chỉ là `cashier`, `tea`, `topping`, `stock`; `online` đúng/sai; không cho thêm trường lạ |
+| `rooms/{mã}/players/{uid}` | Thành viên | Mỗi người **chỉ ghi thông tin của chính mình**. Phải **đang giữ một ghế** mới được ghi (hết ghế thì người thứ 5 bị chặn). Host được sửa người khác (để nhả trạm của người mất mạng lâu) nhưng không được xóa họ | Tên 1–16 ký tự; trạm chỉ là `cashier`, `tea`, `topping`, `stock`; `online` đúng/sai; không cho thêm trường lạ |
 | `rooms/{mã}/state` | Thành viên | **Chỉ host** (khách, ly, kho, két, giờ trong ngày, tiền) | Phải có `data` và `seq` (số) |
 | `rooms/{mã}/live/{uid}` | Thành viên | Chỉ chính người đó (lượng trà đang rót dở) | Lượng trà là số từ 0 đến 2 |
 | `rooms/{mã}/actions/{id}` | Thành viên | Thành viên **gửi thao tác của chính mình** (không giả danh người khác được); chỉ host được xóa sau khi xử lý | Phải có `uid`, `seq`, `action` |

@@ -14,6 +14,8 @@ export const ROOM = {
   hostTimeoutMs: 5000,
   /** Người chơi offline quá lâu thì trạm được nhả cho người khác. */
   releaseStationAfterMs: 20000,
+  /** Người chơi offline quá lâu thì host trả lại ghế (để người khác vào được). */
+  freeSeatAfterMs: 2 * 60 * 1000,
   /** Biểu cảm tự xóa sau chừng này. */
   emoteLifetimeMs: 4000,
 };
