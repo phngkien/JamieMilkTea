@@ -45,7 +45,7 @@ export class Prop extends Phaser.GameObjects.Container {
     this.stockShown = count;
     if (!this.badge) this.createBadge();
     const low = count > 0 && count <= lowAt;
-    const r = 26;
+    const r = this.badgeRadius;
     this.badgeBg!.clear();
     this.badgeBg!.fillStyle(hex(count === 0 ? PALETTE.grey : low ? '#F29A4A' : PALETTE.cream), 1);
     this.badgeBg!.fillCircle(0, 0, r);
@@ -60,6 +60,11 @@ export class Prop extends Phaser.GameObjects.Container {
       this.lowPulse = null;
       this.badge!.setScale(1);
     }
+  }
+
+  /** Nhãn số tồn co theo cỡ vật (vật nhỏ ở bố cục ngang thì nhãn nhỏ hơn). */
+  private get badgeRadius(): number {
+    return Math.max(16, Math.min(26, this.rect.w * 0.17));
   }
 
   get isSoldOut(): boolean {
@@ -77,8 +82,9 @@ export class Prop extends Phaser.GameObjects.Container {
     label.setStroke(PALETTE.outline, 6);
     this.soldOut = this.scene.add.container(0, 0, [cover, label]).setVisible(false);
     this.badgeBg = this.scene.add.graphics();
-    this.badgeText = text(this.scene, 0, 0, '', { size: 28, title: true });
-    this.badge = this.scene.add.container(w / 2 - 20, -h / 2 + 20, [this.badgeBg, this.badgeText]);
+    const r = this.badgeRadius;
+    this.badgeText = text(this.scene, 0, 0, '', { size: r * 1.08, title: true });
+    this.badge = this.scene.add.container(w / 2 - r * 0.8, -h / 2 + r * 0.8, [this.badgeBg, this.badgeText]);
     this.add([this.soldOut, this.badge]);
   }
 

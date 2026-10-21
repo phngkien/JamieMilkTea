@@ -14,9 +14,11 @@ export interface TrayArt {
   amount: number;
   locked?: boolean;
   seed?: number;
+  /** Chiều rộng khay (chiều cao luôn là 160) — để khay vừa khít ô trên kệ. */
+  width?: number;
 }
 
-function piece(shape: ToppingShape, x: number, y: number, color: string, r: number, rot: number): string {
+export function piece(shape: ToppingShape, x: number, y: number, color: string, r: number, rot: number): string {
   const hl = `<circle cx="${x - r * 0.35}" cy="${y - r * 0.35}" r="${r * 0.28}" fill="#FFFFFF" opacity="0.6"/>`;
   switch (shape) {
     case 'cube':
@@ -35,26 +37,27 @@ function piece(shape: ToppingShape, x: number, y: number, color: string, r: numb
 export function toppingTraySvg(a: TrayArt): string {
   const rand = seeded(a.seed ?? 3);
   const color = a.locked ? '#CFC6BD' : a.color;
-  const count = Math.round(6 + 22 * Math.max(0, Math.min(1, a.amount)));
+  const W = Math.max(160, a.width ?? TRAY_W);
+  // Hạt xếp theo lưới, lệch ngẫu nhiên một chút; hàng dưới đầy trước rồi mới chồng lên
+  const cols = Math.max(4, Math.floor((W - 70) / 27) + 1);
+  const count = Math.round(cols * (1 + 3 * Math.max(0, Math.min(1, a.amount))));
   let pieces = '';
-  // Hạt xếp theo lưới 7 cột, lệch ngẫu nhiên một chút; hàng dưới đầy trước rồi mới chồng lên
-  const cols = 7;
   for (let i = 0; i < count; i++) {
     const row = Math.floor(i / cols);
     const col = i % cols;
-    const x = 40 + col * 27 + (row % 2) * 13 + (rand() - 0.5) * 8;
+    const x = 40 + col * ((W - 80) / (cols - 1)) + (row % 2) * 10 + (rand() - 0.5) * 8;
     const y = 118 - row * 20 + (rand() - 0.5) * 8;
     pieces += piece(a.shape, x, y, i % 4 === 0 ? shade(color, 0.12) : color, 12 + rand() * 2, rand() * 40 - 20);
   }
   return svg(
-    TRAY_W,
+    W,
     TRAY_H,
-    `<rect x="4" y="10" width="232" height="144" rx="18" fill="#C9C4BE" ${stroke()}/>
-     <rect x="16" y="20" width="208" height="122" rx="12" fill="#E9E6E2" ${stroke(2.5)}/>
-     <rect x="22" y="44" width="196" height="94" rx="10" fill="${shade('#E9E6E2', -0.1)}"/>
+    `<rect x="4" y="10" width="${W - 8}" height="144" rx="18" fill="#C9C4BE" ${stroke()}/>
+     <rect x="16" y="20" width="${W - 32}" height="122" rx="12" fill="#E9E6E2" ${stroke(2.5)}/>
+     <rect x="22" y="44" width="${W - 44}" height="94" rx="10" fill="${shade('#E9E6E2', -0.1)}"/>
      ${pieces}
      <path d="M24 24 h80" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity="0.9"/>
-     ${a.locked ? `<rect x="16" y="20" width="208" height="122" rx="12" fill="${PALETTE.cream}" opacity="0.45"/>` : ''}`,
+     ${a.locked ? `<rect x="16" y="20" width="${W - 32}" height="122" rx="12" fill="${PALETTE.cream}" opacity="0.45"/>` : ''}`,
   );
 }
 

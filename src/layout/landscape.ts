@@ -44,6 +44,15 @@ export function landscapeLayout(): ShopLayout {
     toppings: grid({ x: 1285, y: 235, w: 612, h: 594 }, 4, 3, 12),
     comingSoon: { x: 1285, y: 870, w: 612, h: 120 },
     floor: { x: 0, y: H - 50, w: W, h: 50 },
+    zones: {
+      customer: { x: 0, y: HUD + 55, w: 720, h: 560 - HUD - 55 },
+      tea: { x: 0, y: 560, w: 720, h: H - 560 },
+      brew: { x: 720, y: HUD + 55, w: 560, h: H - HUD - 55 },
+      topping: { x: 1280, y: HUD + 55, w: W - 1280, h: H - HUD - 55 },
+    },
+    decor: { x: 330, y: 168, w: 260, h: 82 },
+    counterStrip: { x: 0, y: 545, w: 720, h: 22 },
+    worker: { x: 600, y: 165, w: 110, h: 86 },
     sections: { tea: 0, brew: 0, topping: 0 },
   };
 }

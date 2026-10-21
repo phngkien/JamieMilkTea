@@ -53,6 +53,14 @@ export interface ShopLayout {
   comingSoon: Rect;
   /** Quầy gỗ cuối cảnh. */
   floor: Rect;
+  /** Các vùng nền: tường khách, quầy trà, mặt bàn pha, kệ topping. */
+  zones: { customer: Rect; tea: Rect; brew: Rect; topping: Rect };
+  /** Góc trang trí (kệ cây, cửa sổ nhỏ) ở vùng khách. */
+  decor: Rect;
+  /** Quầy gỗ ngăn giữa khách và tiệm. */
+  counterStrip: Rect;
+  /** Nhân viên (người chơi) đứng ở đây. */
+  worker: Rect;
   /** Vị trí cuộn (scrollY) cho các nút nhảy nhanh. */
   sections: { tea: number; brew: number; topping: number };
 }

@@ -1,107 +1,110 @@
-// Khách ở quầy (hình tạm): thân, đầu, tóc, mắt, miệng đổi theo tâm trạng, tên.
+// Khách ở quầy: ghép từ lớp nền (tóc sau + thân + đầu), lớp mặt (đổi biểu cảm, chớp mắt), lớp tóc mái + phụ kiện.
 import Phaser from 'phaser';
-import { CUSTOMER_LOOKS } from '../config/customers';
-import { PALETTE, hex } from '../config/palette';
+import { CHAR_W, FACE_BOX, type CharacterDef, type Expression } from '../art/characters';
+import { CHARACTERS } from '../config/characters';
+import { PALETTE } from '../config/palette';
 import type { Customer as CustomerData } from '../core/types';
-import type { Rect } from '../layout';
-import { box, text } from './draw';
+import type { Rect, ShopLayout } from '../layout';
+import { characterBaseArt, characterFaceArt, characterFrontArt, characterSize } from '../scenes/artCatalog';
+import { label } from './draw';
 
-export type Mood = 'happy' | 'normal' | 'sad';
+export type Mood = Expression;
 
-export class Customer extends Phaser.GameObjects.Container {
-  readonly customerId: string;
-  private face: Phaser.GameObjects.Graphics;
-  private mood: Mood | null = null;
-  private headR: number;
-  private headY: number;
+/** Một nhân vật ghép lớp, đứng với chân (mép dưới) ở đáy `rect`. Dùng cho cả khách và nhân viên. */
+export class Character extends Phaser.GameObjects.Container {
+  protected face: Phaser.GameObjects.Image;
+  protected figure: Phaser.GameObjects.Container;
+  private def: CharacterDef;
+  private layout: ShopLayout;
+  private rect: Rect;
+  private mood: Mood = 'normal';
+  private blinking = false;
+  private nextBlink = 0;
 
-  constructor(scene: Phaser.Scene, rect: Rect, data: CustomerData, textScale: number) {
+  constructor(scene: Phaser.Scene, L: ShopLayout, rect: Rect, def: CharacterDef) {
     super(scene, rect.x + rect.w / 2, rect.y + rect.h);
-    this.customerId = data.id;
-    const look = CUSTOMER_LOOKS[data.look % CUSTOMER_LOOKS.length];
-    const w = rect.w;
-    const h = rect.h;
-    this.headR = Math.min(w * 0.3, h * 0.2);
-    this.headY = -h * 0.62;
-    const body = scene.add.graphics();
-    // Tóc sau
-    body.fillStyle(hex(look.hair), 1);
-    body.fillCircle(0, this.headY - this.headR * 0.1, this.headR * 1.12);
-    // Thân (áo)
-    box(body, -w * 0.36, -h * 0.4, w * 0.72, h * 0.32, { fill: look.shirt, radius: 30 });
-    // Cổ + đầu
-    body.fillStyle(hex(look.skin), 1);
-    body.fillRect(-12, this.headY + this.headR * 0.8, 24, 26);
-    body.fillCircle(0, this.headY, this.headR);
-    body.lineStyle(3, hex(PALETTE.outline), 1);
-    body.strokeCircle(0, this.headY, this.headR);
-    // Tóc mái
-    body.fillStyle(hex(look.hair), 1);
-    body.fillEllipse(0, this.headY - this.headR * 0.62, this.headR * 1.9, this.headR * 0.8);
-    this.add(body);
-    this.face = scene.add.graphics();
-    this.add(this.face);
-    // Bảng tên
-    const name = text(scene, 0, -h * 0.03, data.name, { size: 30 * textScale, title: true });
-    const tagW = Math.max(name.width + 24, w * 0.6);
-    const tag = scene.add.graphics();
-    box(tag, -tagW / 2, -h * 0.08, tagW, h * 0.1, { fill: PALETTE.white, radius: 12, lineWidth: 2 });
-    this.add([tag, name]);
-    this.setMood('normal');
+    this.def = def;
+    this.layout = L;
+    this.rect = rect;
+    const size = characterSize(rect);
+    const s = size.w / CHAR_W;
+    // Toạ độ trong container: gốc ở giữa mép dưới
+    const base = scene.add.image(0, 0, characterBaseArt(L, rect, def.id).key).setOrigin(0.5, 1);
+    this.face = scene.add
+      .image(-size.w / 2 + FACE_BOX.x * s, -size.h + FACE_BOX.y * s, characterFaceArt(L, rect, def.id, 'normal', false).key)
+      .setOrigin(0, 0);
+    const front = scene.add.image(0, 0, characterFrontArt(L, rect, def.id).key).setOrigin(0.5, 1);
+    this.figure = scene.add.container(0, 0, [base, this.face, front]);
+    this.add(this.figure);
     scene.add.existing(this);
+    this.nextBlink = scene.time.now + 1000 + Math.random() * 2000;
+  }
+
+  get characterHeight(): number {
+    return characterSize(this.rect).h;
   }
 
   setMood(mood: Mood): void {
     if (mood === this.mood) return;
     this.mood = mood;
-    const g = this.face;
-    const r = this.headR;
-    const y = this.headY;
-    g.clear();
-    // Mắt
-    g.fillStyle(hex(PALETTE.text), 1);
-    g.fillEllipse(-r * 0.36, y + r * 0.05, r * 0.16, r * 0.24);
-    g.fillEllipse(r * 0.36, y + r * 0.05, r * 0.16, r * 0.24);
-    // Má hồng
-    g.fillStyle(hex(PALETTE.pink), 0.45);
-    g.fillEllipse(-r * 0.55, y + r * 0.35, r * 0.3, r * 0.16);
-    g.fillEllipse(r * 0.55, y + r * 0.35, r * 0.3, r * 0.16);
-    // Miệng
-    g.lineStyle(4, hex(PALETTE.text), 1);
-    g.beginPath();
-    if (mood === 'happy') g.arc(0, y + r * 0.35, r * 0.22, 0.15 * Math.PI, 0.85 * Math.PI, false);
-    else if (mood === 'sad') g.arc(0, y + r * 0.62, r * 0.2, 1.2 * Math.PI, 1.8 * Math.PI, false);
-    else {
-      g.moveTo(-r * 0.15, y + r * 0.5);
-      g.lineTo(r * 0.15, y + r * 0.5);
+    this.updateFace();
+  }
+
+  private updateFace(): void {
+    this.face.setTexture(characterFaceArt(this.layout, this.rect, this.def.id, this.mood, this.blinking).key);
+  }
+
+  /** Nhún nhẹ và chớp mắt. Gọi mỗi khung hình. */
+  idle(time: number, reducedMotion: boolean): void {
+    if (!reducedMotion) {
+      this.figure.scaleY = 1 + Math.sin(time / 420) * 0.012;
+      this.figure.y = Math.sin(time / 420) * 1.5;
     }
-    g.strokePath();
+    if (time >= this.nextBlink) {
+      this.blinking = !this.blinking;
+      this.updateFace();
+      this.nextBlink = time + (this.blinking ? 130 : 2200 + Math.random() * 2600);
+    }
+  }
+}
+
+export class Customer extends Character {
+  readonly customerId: string;
+
+  constructor(scene: Phaser.Scene, L: ShopLayout, data: CustomerData, textScale: number) {
+    const def = CHARACTERS[data.look % CHARACTERS.length];
+    super(scene, L, L.customer, def);
+    this.customerId = data.id;
+    // Bảng tên dưới chân
+    const w = Math.min(L.customer.w, 70 + data.name.length * 15 * textScale);
+    this.add(label(scene, 0, -12 * textScale, w, 44 * textScale, data.name, textScale, PALETTE.white));
   }
 
   /** Đi vào từ bên trái. */
-  enter(): void {
+  enter(reducedMotion: boolean): void {
+    if (reducedMotion) return;
     const targetX = this.x;
-    this.x = targetX - 300;
+    this.x = targetX - 320;
     this.setAlpha(0);
-    this.scene.tweens.add({ targets: this, x: targetX, alpha: 1, duration: 450, ease: 'Back.easeOut' });
+    this.scene.tweens.add({ targets: this, x: targetX, alpha: 1, duration: 520, ease: 'Back.easeOut' });
   }
 
-  /** Đi ra rồi tự hủy. */
-  leave(): void {
+  /** Đi ra rồi tự hủy. Vui thì nhảy lên một cái trước khi đi. */
+  leave(happy: boolean, reducedMotion: boolean): void {
     this.scene.tweens.killTweensOf(this);
+    if (reducedMotion) {
+      this.destroy();
+      return;
+    }
+    if (happy) this.scene.tweens.add({ targets: this, y: this.y - 26, duration: 160, yoyo: true, ease: 'Quad.easeOut' });
     this.scene.tweens.add({
       targets: this,
-      x: this.x - 300,
+      x: this.x - 340,
       alpha: 0,
-      duration: 450,
-      delay: 500,
+      duration: 480,
+      delay: 650,
       ease: 'Quad.easeIn',
       onComplete: () => this.destroy(),
     });
-  }
-
-  /** Nhún nhẹ khi đang chờ. */
-  idle(time: number): void {
-    this.scaleY = 1 + Math.sin(time / 380) * 0.012;
   }
 }

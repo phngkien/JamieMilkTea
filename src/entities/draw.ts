@@ -116,3 +116,39 @@ export function shake(scene: Phaser.Scene, target: Phaser.GameObjects.Components
 export function bounce(scene: Phaser.Scene, target: Phaser.GameObjects.Components.Transform & Phaser.GameObjects.GameObject): void {
   scene.tweens.add({ targets: target, scaleX: 1.06, scaleY: 0.94, duration: 70, yoyo: true });
 }
+
+/** Nhãn gỗ nhỏ có chữ (tên đồ vật). (x, y) là tâm. */
+export function label(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  content: string,
+  textScale: number,
+  fillColor: string = PALETTE.beige,
+): Phaser.GameObjects.Container {
+  const g = scene.add.graphics();
+  const r = Math.min(14, h / 2.5);
+  g.fillStyle(hex(PALETTE.woodDark), 0.55);
+  g.fillRoundedRect(-w / 2, -h / 2 + 4, w, h, r);
+  box(g, -w / 2, -h / 2, w, h, { fill: fillColor, radius: r, lineWidth: 2.5 });
+  const t = text(scene, 0, 0, content, { size: Math.min(30 * textScale, h * 0.62, (w / Math.max(4, content.length)) * 1.7), title: true });
+  return scene.add.container(x, y, [g, t]);
+}
+
+/** Thu nhỏ cỡ chữ cho tới khi vừa chiều rộng (không ngắt giữa chữ). Chữ hai từ trở lên được xuống dòng giữa các từ. */
+export function fitText(t: Phaser.GameObjects.Text, maxW: number, minSize = 14, allowWrap = true): Phaser.GameObjects.Text {
+  let size = parseInt(String(t.style.fontSize), 10) || 30;
+  const words = t.text.split(' ');
+  // Thử một dòng trước; quá dài mà có nhiều từ thì chia đôi thành hai dòng
+  if (allowWrap && t.width > maxW && words.length > 1) {
+    const mid = Math.ceil(words.length / 2);
+    t.setText(`${words.slice(0, mid).join(' ')}\n${words.slice(mid).join(' ')}`);
+  }
+  while (t.width > maxW && size > minSize) {
+    size -= 1;
+    t.setFontSize(size);
+  }
+  return t;
+}

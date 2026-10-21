@@ -601,3 +601,39 @@ body {
   font-weight: 700;
   line-height: 1.4;
 }
+
+/* ───── Nút kiểu "kẹo": có gờ dưới, lún xuống khi nhấn ───── */
+#ui button {
+  box-shadow: 0 calc(var(--u) * 7) 0 rgba(107, 74, 58, 0.55);
+  transition:
+    transform 0.06s,
+    box-shadow 0.06s;
+}
+
+#ui button:active:not([disabled]) {
+  transform: translateY(calc(var(--u) * 6));
+  box-shadow: 0 calc(var(--u) * 1) 0 rgba(107, 74, 58, 0.55);
+}
+
+#ui .tutorial-skip {
+  box-shadow: 0 calc(var(--u) * 4) 0 rgba(47, 90, 140, 0.5);
+}
+
+/* Ô tiền và sao trên HUD dạng "viên kẹo" */
+.hud-money {
+  display: inline-block;
+  padding: 0 calc(var(--u) * 26);
+  border-radius: calc(var(--u) * 40);
+  background: #fff;
+  border: calc(var(--u) * 4) solid var(--outline);
+  box-shadow: 0 calc(var(--u) * 5) 0 rgba(107, 74, 58, 0.4);
+  line-height: 1.15;
+}
+
+.hud-shop {
+  margin-bottom: calc(var(--u) * 4);
+}
+
+#hud {
+  background: linear-gradient(#fff7ef, var(--cream));
+}

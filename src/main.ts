@@ -64,6 +64,9 @@ async function start(): Promise<void> {
   game.registry.set('layout', layout);
   game.registry.set('tutorialDone', settings.tutorialDone);
   game.registry.set('tutorialTarget', null);
+  // Giảm chuyển động: theo cài đặt trong game hoặc cài đặt của máy
+  const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  game.registry.set('reducedMotion', settings.reducedMotion || prefersReduced);
   // Hướng dẫn xong / bỏ qua thì lưu lại để lần sau không hiện nữa
   game.registry.events.on('changedata-tutorialDone', (_parent: unknown, value: boolean) => {
     settings.tutorialDone = value;
@@ -73,6 +76,9 @@ async function start(): Promise<void> {
   overlay.bind(adapter, {
     onTutorial: () => {
       game.registry.set('tutorialTarget', null);
+  // Giảm chuyển động: theo cài đặt trong game hoặc cài đặt của máy
+  const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  game.registry.set('reducedMotion', settings.reducedMotion || prefersReduced);
       game.registry.set('tutorialDone', false);
     },
     onReset: () => {

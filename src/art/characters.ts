@@ -286,3 +286,32 @@ export function characterSvg(d: CharacterDef, expression: Expression = 'normal')
   );
 }
 
+
+/** Vùng mặt (mắt, má, miệng) trong khung 200×260 — lớp mặt chỉ vẽ vùng này cho nhẹ. */
+export const FACE_BOX = { x: 40, y: 80, w: 120, h: 80 };
+/** Vùng đầu (cả tóc, mũ) — dùng làm ảnh đại diện nhỏ trong hàng chờ. */
+export const HEAD_BOX = { x: 20, y: 10, w: 160, h: 160 };
+
+/** Lớp nền: tóc sau + thân + đầu (chưa có mặt). */
+export function characterBaseSvg(d: CharacterDef): string {
+  return svg(CHAR_W, CHAR_H, hairBack(d) + body(d) + head(d));
+}
+
+/** Lớp trên: tóc mái + kính, mũ, kẹp tóc. */
+export function characterFrontSvg(d: CharacterDef): string {
+  return svg(CHAR_W, CHAR_H, hairFront(d) + accessories(d));
+}
+
+/** Lớp mặt, chỉ vùng FACE_BOX. */
+export function characterFaceSvg(d: CharacterDef, expression: Expression, closedEyes = false): string {
+  const b = FACE_BOX;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${b.w}" height="${b.h}" viewBox="${b.x} ${b.y} ${b.w} ${b.h}">${faceSvg(d, expression, closedEyes)}</svg>`;
+}
+
+/** Ảnh đại diện (đầu) cho hàng chờ. */
+export function characterAvatarSvg(d: CharacterDef): string {
+  const b = HEAD_BOX;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${b.w}" height="${b.h}" viewBox="${b.x} ${b.y} ${b.w} ${b.h}">${
+    hairBack(d) + head(d) + faceSvg(d, 'normal') + hairFront(d) + accessories(d)
+  }</svg>`;
+}

@@ -2,7 +2,6 @@
 // mọi luật chơi nằm trong src/core.
 import Phaser from 'phaser';
 import { OVERFLOW_AT, SIZES } from '../config/cup';
-import { PALETTE, hex } from '../config/palette';
 import {
   LOW_STOCK_AT,
   STOCK_ICE,
@@ -11,6 +10,7 @@ import {
   stockIdOfTea,
   stockIdOfTopping,
 } from '../config/inventory';
+import { PALETTE, hex } from '../config/palette';
 import { EVENT_TEXT, REJECT_TEXT, STATUS_TEXT, SUMMARY_TEXT, UI_TEXT, fill } from '../config/strings';
 import { TEAS } from '../config/teas';
 import { TOPPINGS } from '../config/toppings';
@@ -20,7 +20,7 @@ import type { Customer as CustomerData, CupState, GameEvent, ShopState } from '.
 import { Cup } from '../entities/Cup';
 import { Customer } from '../entities/Customer';
 import { CupStack } from '../entities/CupStack';
-import { box, text } from '../entities/draw';
+import { box, label, text } from '../entities/draw';
 import { IceBin } from '../entities/IceBin';
 import { OrderBubble } from '../entities/OrderBubble';
 import type { Prop } from '../entities/Prop';
@@ -31,16 +31,22 @@ import { SyrupPump } from '../entities/SyrupPump';
 import { TeaDispenser } from '../entities/TeaDispenser';
 import { ToppingJar } from '../entities/ToppingJar';
 import { TrashBin } from '../entities/TrashBin';
+import { Worker } from '../entities/Worker';
 import { inRect, type Rect, type ShopLayout } from '../layout';
 import type { NetAdapter } from '../net/NetAdapter';
 import type { Overlay } from '../ui/overlay';
 import type { Section } from '../ui/quickNav';
 import { currentTutorialStep, type TutorialTarget } from '../ui/tutorial';
+import { backgroundChunks, coinArt, starArt, textureRequests, ts as textScaleOf } from './artCatalog';
 import { ScrollController } from './ScrollController';
+import { ensureTextures } from './textures';
 
 /** Kéo ly sát mép trên/dưới màn hình (đơn vị khung) thì cảnh tự cuộn theo. */
 const EDGE_SCROLL_ZONE = 160;
 const EDGE_SCROLL_SPEED = 1.1; // đơn vị khung mỗi ms
+
+/** Lớp vẽ (depth): nền < vật thể < ly đang kéo < hiệu ứng < viền hướng dẫn. */
+const DEPTH = { background: -10, props: 0, customer: 1, cup: 2, stream: 3, dragging: 10, fx: 20, highlight: 30 };
 
 interface PourState {
   cupId: string;
@@ -57,6 +63,8 @@ export class ShopScene extends Phaser.Scene {
   /** Hệ số cỡ chữ trên canvas: bố cục ngang chữ nhỏ hơn. */
   private ts = 1;
   private scroll!: ScrollController;
+  /** Texture đã tạo xong và cảnh đã dựng. */
+  private ready = false;
 
   private dispensers: TeaDispenser[] = [];
   private cupStacks: CupStack[] = [];
@@ -68,6 +76,7 @@ export class ShopScene extends Phaser.Scene {
   private serveButton!: ServeButton;
   private bubble!: OrderBubble;
   private queue!: QueueStrip;
+  private worker!: Worker;
   private statusText!: Phaser.GameObjects.Text;
   private statusBg!: Phaser.GameObjects.Graphics;
   private boardHint!: Phaser.GameObjects.Text;
@@ -94,11 +103,16 @@ export class ShopScene extends Phaser.Scene {
     super('Shop');
   }
 
+  /** Người chơi bật "Giảm chuyển động" hoặc máy đặt prefers-reduced-motion. */
+  private get reducedMotion(): boolean {
+    return this.registry.get('reducedMotion') === true;
+  }
+
   create(): void {
     this.adapter = this.registry.get('adapter') as NetAdapter;
     this.overlay = this.registry.get('overlay') as Overlay;
     this.layout = this.registry.get('layout') as ShopLayout;
-    this.ts = this.layout.kind === 'portrait' ? 1 : 0.75;
+    this.ts = textScaleOf(this.layout);
     this.resetFields();
 
     this.scroll = new ScrollController(this);
@@ -112,10 +126,23 @@ export class ShopScene extends Phaser.Scene {
     this.overlay.onJump = (section) => this.scroll.scrollTo(this.layout.sections[section]);
     this.overlay.onSkipTutorial = () => this.finishTutorial();
 
+    // Vẽ hình SVG thành texture (lần đầu mất khoảng một giây), xong mới dựng cảnh
+    const loading = text(this, this.layout.viewWidth / 2, this.scroll.scrollY + this.layout.viewHeight / 2, '…', {
+      size: 80,
+      title: true,
+      color: PALETTE.pink,
+    });
+    void ensureTextures(this, textureRequests(this.layout, this.adapter.getState())).then(() => {
+      if (!this.sys.isActive()) return;
+      loading.destroy();
+      this.build();
+    });
+  }
+
+  private build(): void {
     this.drawBackground();
     this.createProps();
     this.setupInput();
-
     this.unsubscribe = this.adapter.subscribe((state, events) => this.handleEvents(state, events));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.unsubscribe?.();
@@ -123,10 +150,12 @@ export class ShopScene extends Phaser.Scene {
     });
     // Vẽ ngay khách đang có (không chạy hiệu ứng đi vào khi đổi bố cục)
     this.syncView(this.adapter.getState(), false);
+    this.ready = true;
   }
 
   /** Scene được khởi động lại khi xoay máy: xóa tham chiếu cũ. */
   private resetFields(): void {
+    this.ready = false;
     this.dispensers = [];
     this.cupStacks = [];
     this.toppingJars = [];
@@ -147,64 +176,29 @@ export class ShopScene extends Phaser.Scene {
 
   private drawBackground(): void {
     const L = this.layout;
-    const g = this.add.graphics();
-    // Tường kem toàn cảnh
-    g.fillStyle(hex(PALETTE.cream), 1);
-    g.fillRect(0, 0, L.viewWidth, L.worldHeight);
-    // Ốp gỗ chân tường phía sau khách
-    g.fillStyle(hex(PALETTE.beige), 1);
-    g.fillRect(0, L.customer.y + L.customer.h * 0.55, L.kind === 'portrait' ? L.viewWidth : 720, L.customer.h * 0.45);
-    // Mái hiên sọc hồng – trắng có mép lượn sóng
-    const a = L.awning;
-    const stripe = L.kind === 'portrait' ? 90 : 80;
-    for (let x = 0, i = 0; x < a.w; x += stripe, i++) {
-      const color = hex(i % 2 === 0 ? PALETTE.pink : PALETTE.white);
-      g.fillStyle(color, 1);
-      g.fillRect(x, a.y, stripe, a.h * 0.75);
-      g.fillCircle(x + stripe / 2, a.y + a.h * 0.75, stripe / 2);
+    for (const chunk of backgroundChunks(L)) {
+      this.add.image(0, chunk.y, chunk.key).setOrigin(0, 0).setDepth(DEPTH.background);
     }
-    g.lineStyle(3, hex(PALETTE.outline), 1);
-    g.lineBetween(0, a.y, a.w, a.y);
-    // Mặt quầy dưới hàng bình trà
-    box(g, L.teaShelf.x, L.teaShelf.y, L.teaShelf.w, L.teaShelf.h, { fill: PALETTE.woodLight, radius: 12 });
-    // Bảng gỗ pha ly
-    const b = L.board;
-    box(g, b.x, b.y, b.w, b.h, { fill: PALETTE.woodLight, radius: 24 });
-    g.lineStyle(3, hex(PALETTE.woodDark), 0.35);
-    for (let i = 1; i < 5; i++) g.lineBetween(b.x + 20, b.y + (b.h * i) / 5, b.x + b.w - 20, b.y + (b.h * i) / 5 + 6);
-    // Khay kim loại của kệ topping
-    const t = L.toppingShelf;
-    box(g, t.x, t.y, t.w, t.h, { fill: '#A9A39D', radius: 20 });
-    // Kệ foam / siro (sắp mở)
-    const c = L.comingSoon;
-    box(g, c.x, c.y, c.w, c.h, { fill: PALETTE.beige, radius: 18, alpha: 0.8 });
-    text(this, c.x + c.w / 2, c.y + c.h / 2, UI_TEXT.comingSoon, { size: 34 * this.ts, color: '#8A7F78' });
-    // Quầy gỗ cuối cảnh
-    g.fillStyle(hex(PALETTE.woodDark), 1);
-    g.fillRect(L.floor.x, L.floor.y, L.floor.w, L.floor.h);
-    g.fillStyle(hex(PALETTE.woodLight), 1);
-    g.fillRect(L.floor.x, L.floor.y, L.floor.w, 18);
-
-    // Nhãn các vùng
-    for (const label of L.labels) {
-      const t2 = text(this, 0, 0, UI_TEXT[label.key], { size: 38 * this.ts, title: true });
-      const w = t2.width + 50;
+    // Nhãn các vùng: bảng gỗ có chữ
+    for (const l of L.labels) {
+      const t = text(this, 0, 0, UI_TEXT[l.key], { size: 38 * this.ts, title: true });
+      const w = t.width + 56;
       const h = 64 * this.ts;
-      const lg = this.add.graphics();
-      box(lg, label.x, label.y, w, h, { fill: PALETTE.beige, radius: 14 });
-      t2.setPosition(label.x + w / 2, label.y + h / 2);
-      t2.setDepth(1);
+      t.destroy();
+      label(this, l.x + w / 2, l.y + h / 2, w, h, UI_TEXT[l.key], this.ts * 1.3, PALETTE.beige).setDepth(DEPTH.props);
     }
+    const c = L.comingSoon;
+    label(this, c.x + c.w / 2, c.y + c.h / 2, Math.min(c.w * 0.8, 520 * this.ts), 56 * this.ts, UI_TEXT.comingSoon, this.ts, PALETTE.white).setDepth(DEPTH.props);
 
     // Dòng trạng thái dưới ly
-    this.statusBg = this.add.graphics();
-    this.statusText = text(this, L.statusText.x, L.statusText.y, '', { size: 34 * this.ts, title: true });
-    this.statusText.setDepth(2);
+    this.statusBg = this.add.graphics().setDepth(DEPTH.props);
+    this.statusText = text(this, L.statusText.x, L.statusText.y, '', { size: 34 * this.ts, title: true }).setDepth(DEPTH.props);
+    const b = L.board;
     this.boardHint = text(this, b.x + b.w / 2, b.y + b.h / 2, UI_TEXT.board, {
-      size: 36 * this.ts,
-      color: PALETTE.woodDark,
+      size: 38 * this.ts,
+      color: '#8A5F3E',
       title: true,
-    });
+    }).setDepth(DEPTH.props);
   }
 
   private createProps(): void {
@@ -214,14 +208,14 @@ export class ShopScene extends Phaser.Scene {
     L.dispensers.forEach((rect, i) => {
       const tea = TEAS[i];
       if (!tea) return;
-      const d = new TeaDispenser(this, rect, tea, !state.unlockedTeas.includes(tea.id), this.ts);
+      const d = new TeaDispenser(this, L, rect, tea, !state.unlockedTeas.includes(tea.id), this.ts);
       d.hit.on('pointerdown', (pointer: Phaser.Input.Pointer) => this.startPour(d, pointer));
       this.dispensers.push(d);
       if (!d.locked) this.stockProps.push({ prop: d, stockId: stockIdOfTea(tea.id) });
     });
 
     for (const size of ['M', 'L'] as const) {
-      const stack = new CupStack(this, L.cupStacks[size], size, this.ts);
+      const stack = new CupStack(this, L, size, this.ts);
       stack.onTap(() => {
         stack.pop();
         this.adapter.dispatch({ type: 'PICK_CUP', size });
@@ -230,44 +224,48 @@ export class ShopScene extends Phaser.Scene {
       this.stockProps.push({ prop: stack, stockId: stockIdOfCup(size) });
     }
 
-    this.sealer = new SealMachine(this, L.sealer, this.ts).onTap(() => {
+    this.sealer = new SealMachine(this, L, this.ts).onTap(() => {
       const cup = this.currentCup();
       if (cup) this.adapter.dispatch({ type: 'SEAL_CUP', cupId: cup.id });
       else this.overlay.toast.show(REJECT_TEXT.noCup, 'warn');
     });
-    this.trash = new TrashBin(this, L.trash, this.ts);
-    this.ice = new IceBin(this, L.ice, this.ts).onTap(() => this.withCup((cup) => {
-      this.adapter.dispatch({ type: 'SCOOP_ICE', cupId: cup.id });
-    }, () => this.ice.refuse()));
-    this.syrup = new SyrupPump(this, L.syrup, this.ts).onTap(() => this.withCup((cup) => {
-      this.adapter.dispatch({ type: 'TAP_SYRUP', cupId: cup.id });
-    }, () => this.syrup.refuse()));
-    this.serveButton = new ServeButton(this, L.serveButton, this.ts).onTap(() => this.serveCurrentCup());
+    this.trash = new TrashBin(this, L, this.ts);
+    this.ice = new IceBin(this, L, this.ts).onTap(() =>
+      this.withCup((cup) => this.adapter.dispatch({ type: 'SCOOP_ICE', cupId: cup.id }), () => this.ice.refuse()),
+    );
+    this.syrup = new SyrupPump(this, L, this.ts).onTap(() =>
+      this.withCup((cup) => this.adapter.dispatch({ type: 'TAP_SYRUP', cupId: cup.id }), () => this.syrup.refuse()),
+    );
+    this.serveButton = new ServeButton(this, L, this.ts).onTap(() => this.serveCurrentCup());
 
     L.toppings.forEach((rect, i) => {
       const topping = TOPPINGS[i];
       if (!topping) return;
-      const jar = new ToppingJar(this, rect, topping, !state.unlockedToppings.includes(topping.id), this.ts);
+      const jar = new ToppingJar(this, L, rect, topping, !state.unlockedToppings.includes(topping.id), this.ts);
       jar.onTap(() => {
         if (jar.locked) {
           jar.refuse();
           this.overlay.toast.show(REJECT_TEXT.locked, 'warn');
           return;
         }
-        this.withCup((cup) => {
-          this.lastJar = jar;
-          this.adapter.dispatch({ type: 'ADD_TOPPING', cupId: cup.id, topping: topping.id });
-        }, () => jar.refuse());
+        this.withCup(
+          (cup) => {
+            this.lastJar = jar;
+            this.adapter.dispatch({ type: 'ADD_TOPPING', cupId: cup.id, topping: topping.id });
+          },
+          () => jar.refuse(),
+        );
       });
       this.toppingJars.push(jar);
       if (!jar.locked) this.stockProps.push({ prop: jar, stockId: stockIdOfTopping(topping.id) });
     });
     this.stockProps.push({ prop: this.ice, stockId: STOCK_ICE }, { prop: this.syrup, stockId: STOCK_SUGAR });
 
-    this.queue = new QueueStrip(this, L.queue);
-    this.bubble = new OrderBubble(this, L.bubble, this.ts);
-    this.stream = this.add.graphics().setDepth(5);
-    this.highlight = this.add.graphics().setDepth(20);
+    this.worker = new Worker(this, L, UI_TEXT.staffName, this.ts);
+    this.queue = new QueueStrip(this, L);
+    this.bubble = new OrderBubble(this, L.bubble, this.ts).setDepth(DEPTH.customer);
+    this.stream = this.add.graphics().setDepth(DEPTH.stream);
+    this.highlight = this.add.graphics().setDepth(DEPTH.highlight);
   }
 
   // ───────────────────────── Thao tác ─────────────────────────
@@ -356,7 +354,7 @@ export class ShopScene extends Phaser.Scene {
     view.hit.on(Phaser.Input.Events.GAMEOBJECT_DRAG_START, (pointer: Phaser.Input.Pointer) => {
       if (this.pour) return;
       this.dragPointer = pointer;
-      view.setDepth(10);
+      view.setDepth(DEPTH.dragging);
     });
     view.hit.on(Phaser.Input.Events.GAMEOBJECT_DRAG_END, () => this.dropCup(view));
   }
@@ -373,32 +371,54 @@ export class ShopScene extends Phaser.Scene {
   private dropCup(view: Cup): void {
     const point = this.dragWorldPoint();
     this.dragPointer = null;
-    view.setDepth(0);
+    view.setDepth(DEPTH.cup);
     this.sealer.setHighlight(false);
     this.trash.setHighlight(false);
     if (!point) return;
     const state = this.adapter.getState();
     const cupId = view.cupId;
-    if (inRect(this.layout.sealer, point.x, point.y, 30)) {
+    const L = this.layout;
+    if (inRect(L.sealer, point.x, point.y, 30)) {
+      const cup = state.cups.find((c) => c.id === cupId);
+      if (cup && !cup.sealed && !cup.ruined && cup.tea && !this.reducedMotion) {
+        // Ly trượt vào khoang máy ép, ép xong trượt về bảng gỗ
+        view.setDepth(DEPTH.dragging);
+        this.tweens.add({
+          targets: view,
+          x: this.sealer.slot.x,
+          y: this.sealer.slot.y + L.cupHeight[cup.size] * 0.45,
+          duration: 160,
+          onUpdate: () => view.placeAt(view.x, view.y),
+          onComplete: () => {
+            this.adapter.dispatch({ type: 'SEAL_CUP', cupId });
+            this.time.delayedCall(380, () => this.returnCup(view));
+          },
+        });
+        return;
+      }
       this.adapter.dispatch({ type: 'SEAL_CUP', cupId });
-    } else if (inRect(this.layout.trash, point.x, point.y, 30)) {
+    } else if (inRect(L.trash, point.x, point.y, 30)) {
       this.adapter.dispatch({ type: 'DISCARD_CUP', cupId });
     } else if (this.overCustomer(point.x, point.y)) {
       const customer = state.customers[0];
       if (customer) this.adapter.dispatch({ type: 'SERVE_CUP', cupId, customerId: customer.id });
       else this.overlay.toast.show(REJECT_TEXT.noCustomer, 'warn');
     }
-    // Ly vẫn còn (chưa giao / bỏ) thì trượt về bảng gỗ
-    if (view.active && this.cupView === view) {
-      this.tweens.add({
-        targets: view,
-        x: this.layout.cupSpot.x,
-        y: this.layout.cupSpot.y,
-        duration: 220,
-        ease: 'Quad.easeOut',
-        onUpdate: () => view.placeAt(view.x, view.y),
-      });
-    }
+    this.returnCup(view);
+  }
+
+  /** Ly vẫn còn (chưa giao / bỏ) thì trượt về bảng gỗ. */
+  private returnCup(view: Cup): void {
+    if (!view.active || this.cupView !== view) return;
+    view.setDepth(DEPTH.cup);
+    this.tweens.add({
+      targets: view,
+      x: this.layout.cupSpot.x,
+      y: this.layout.cupSpot.y,
+      duration: 220,
+      ease: 'Quad.easeOut',
+      onUpdate: () => view.placeAt(view.x, view.y),
+    });
   }
 
   // ───────────────────────── Sự kiện từ logic ─────────────────────────
@@ -415,7 +435,7 @@ export class ShopScene extends Phaser.Scene {
           break;
         case 'cupRuined':
           this.overlay.toast.show(EVENT_TEXT.ruined, 'warn', 2500);
-          this.cameras.main.shake(200, 0.004);
+          if (!this.reducedMotion) this.cameras.main.shake(200, 0.004);
           break;
         case 'syrupTapped':
           this.syrup.pump();
@@ -436,7 +456,7 @@ export class ShopScene extends Phaser.Scene {
         case 'served':
           this.moodOverride = { id: e.customerId, mood: e.score.total >= 50 ? 'happy' : 'sad' };
           this.showScorePopup(e.score.total, e.score.stars, e.money);
-          this.overlay.hud.flashMoney();
+          if (e.score.total >= 80) this.worker.cheer();
           break;
         case 'customerLeft':
           if (e.reason === 'impatient') {
@@ -461,36 +481,77 @@ export class ShopScene extends Phaser.Scene {
     if (this.dragPointer && !state.cups.some((c) => c.id === this.cupView?.cupId)) this.dragPointer = null;
   }
 
+  /** Bảng điểm bật ra trên đầu khách: điểm, sao bật lần lượt, tiền; đồng xu bay lên HUD. */
   private showScorePopup(score: number, stars: number, money: number): void {
-    const c = this.layout.customer;
-    const x = c.x + c.w / 2 + 40;
-    const y = c.y + c.h * 0.2;
-    const popup = this.add.container(x, y).setDepth(30);
+    const L = this.layout;
+    const c = L.customer;
+    const x = c.x + c.w / 2 + 60 * this.ts;
+    const y = c.y + c.h * 0.22;
+    const popup = this.add.container(x, y).setDepth(DEPTH.fx);
     const g = this.add.graphics();
-    const w = 330 * this.ts;
-    const h = 190 * this.ts;
-    box(g, -w / 2, -h / 2, w, h, { fill: PALETTE.white, radius: 24 });
+    const w = 360 * this.ts;
+    const h = 200 * this.ts;
+    g.fillStyle(hex(PALETTE.woodDark), 0.35);
+    g.fillRoundedRect(-w / 2 + 4, -h / 2 + 8, w, h, 26);
+    box(g, -w / 2, -h / 2, w, h, { fill: PALETTE.white, radius: 26 });
     popup.add(g);
-    popup.add(text(this, 0, -h * 0.28, fill(UI_TEXT.scoreLine, { score }), { size: 44 * this.ts, title: true }));
-    popup.add(
-      text(this, 0, 0, '★'.repeat(stars) + '☆'.repeat(5 - stars), { size: 44 * this.ts, color: '#E0A82E', title: true }),
-    );
-    popup.add(text(this, 0, h * 0.3, `+${formatMoney(money)}`, { size: 44 * this.ts, color: '#C98A12', title: true }));
-    popup.setScale(0.4);
-    this.tweens.add({ targets: popup, scale: 1, duration: 300, ease: 'Back.easeOut' });
+    popup.add(text(this, 0, -h * 0.3, fill(UI_TEXT.scoreLine, { score }), { size: 46 * this.ts, title: true }));
+    const starSize = starArt(L, true).w;
+    for (let i = 0; i < 5; i++) {
+      const star = this.add.image((i - 2) * starSize * 0.95, h * 0.02, starArt(L, i < stars).key);
+      popup.add(star);
+      if (!this.reducedMotion && i < stars) {
+        star.setScale(0);
+        this.tweens.add({ targets: star, scale: 1, duration: 260, delay: 200 + i * 110, ease: 'Back.easeOut' });
+      }
+    }
+    popup.add(text(this, 0, h * 0.33, `+${formatMoney(money)}`, { size: 44 * this.ts, color: '#C98A12', title: true }));
+    if (!this.reducedMotion) {
+      popup.setScale(0.4);
+      this.tweens.add({ targets: popup, scale: 1, duration: 300, ease: 'Back.easeOut' });
+    }
     this.tweens.add({
       targets: popup,
       y: y - 120,
       alpha: 0,
-      delay: 1500,
+      delay: 1700,
       duration: 600,
       onComplete: () => popup.destroy(),
     });
+    this.flyCoins(x, y + h * 0.33);
+  }
+
+  /** Vài đồng xu bay từ khách lên ô tiền trên HUD. */
+  private flyCoins(fromX: number, fromY: number): void {
+    if (this.reducedMotion) {
+      this.overlay.hud.flashMoney();
+      return;
+    }
+    const L = this.layout;
+    const key = coinArt(L).key;
+    for (let i = 0; i < 4; i++) {
+      const coin = this.add.image(fromX + (i - 1.5) * 24, fromY, key).setDepth(DEPTH.fx);
+      this.tweens.add({
+        targets: coin,
+        // Ô tiền ở giữa HUD; toạ độ thế giới phụ thuộc vị trí cuộn lúc bay
+        x: L.viewWidth / 2,
+        y: { getEnd: () => this.scroll.scrollY + L.hudHeight * 0.62 },
+        scale: 0.6,
+        duration: 650,
+        delay: 350 + i * 90,
+        ease: 'Cubic.easeIn',
+        onComplete: () => {
+          coin.destroy();
+          if (i === 0) this.overlay.hud.flashMoney();
+        },
+      });
+    }
   }
 
   // ───────────────────────── Vẽ theo state mỗi khung hình ─────────────────────────
 
   update(time: number, delta: number): void {
+    if (!this.ready) return;
     this.adapter.update(delta);
     const state = this.adapter.getState();
     this.scroll.update(delta);
@@ -504,6 +565,7 @@ export class ShopScene extends Phaser.Scene {
 
   private updateStock(state: ShopState): void {
     for (const { prop, stockId } of this.stockProps) prop.setStock(state.stock[stockId] ?? 0, LOW_STOCK_AT);
+    for (const jar of this.toppingJars) jar.setLevel(state.stock[stockIdOfTopping(jar.topping.id)] ?? 0);
     // Vừa hết giờ: báo ngừng nhận khách
     if (this.lastPhase === 'open' && state.phase === 'closing') {
       this.overlay.toast.show(SUMMARY_TEXT.closing, 'info', 3500);
@@ -542,29 +604,33 @@ export class ShopScene extends Phaser.Scene {
 
   private syncView(state: ShopState, animate: boolean, time = 0): void {
     this.syncCustomer(state, animate, time);
-    this.syncCup(state);
+    this.syncCup(state, time, animate);
     const front = state.customers[0] ?? null;
     const cup = state.cups[0] ?? null;
     this.serveButton.setEnabled(!!cup && cup.sealed && !cup.ruined && !!front);
+    this.worker.idle(time, this.reducedMotion);
   }
 
   private syncCustomer(state: ShopState, animate: boolean, time: number): void {
     const front: CustomerData | null = state.customers[0] ?? null;
+    const rm = this.reducedMotion;
     if (this.customerView && this.customerView.customerId !== front?.id) {
       const leaving = this.customerView;
+      const happy = this.moodOverride?.id === leaving.customerId && this.moodOverride.mood === 'happy';
       if (this.moodOverride?.id === leaving.customerId) leaving.setMood(this.moodOverride.mood);
-      if (animate) leaving.leave();
+      if (animate) leaving.leave(happy, rm);
       else leaving.destroy();
       this.customerView = null;
     }
     if (front && !this.customerView) {
-      this.customerView = new Customer(this, this.layout.customer, front, this.ts);
-      if (animate) this.customerView.enter();
+      this.customerView = new Customer(this, this.layout, front, this.ts);
+      this.customerView.setDepth(DEPTH.customer);
+      if (animate) this.customerView.enter(rm);
     }
     if (front && this.customerView) {
       const override = this.moodOverride?.id === front.id ? this.moodOverride.mood : null;
-      this.customerView.setMood(override ?? (front.patience > 0.6 ? 'happy' : front.patience > 0.3 ? 'normal' : 'sad'));
-      this.customerView.idle(time);
+      this.customerView.setMood(override ?? (front.patience > 0.35 ? 'normal' : 'sad'));
+      this.customerView.idle(time, rm);
     }
     this.bubble.setCustomer(front);
     if (front) this.bubble.setPatience(front.patience);
@@ -577,7 +643,7 @@ export class ShopScene extends Phaser.Scene {
     }
   }
 
-  private syncCup(state: ShopState): void {
+  private syncCup(state: ShopState, time: number, animate: boolean): void {
     const L = this.layout;
     const cup = state.cups[0] ?? null;
     if (this.cupView && this.cupView.cupId !== cup?.id) {
@@ -586,18 +652,21 @@ export class ShopScene extends Phaser.Scene {
       this.dragPointer = null;
     }
     if (cup && !this.cupView) {
-      this.cupView = new Cup(this, L.cupSpot.x, L.cupSpot.y, cup, L.cupHeight[cup.size], this.ts);
+      this.cupView = new Cup(this, L, L.cupSpot.x, L.cupSpot.y, cup, this.ts);
+      this.cupView.setDepth(DEPTH.cup);
       this.attachCupDrag(this.cupView);
-      // Ly rơi nhẹ xuống bảng gỗ
-      this.cupView.placeAt(L.cupSpot.x, L.cupSpot.y - 60);
-      const view = this.cupView;
-      this.tweens.add({
-        targets: view,
-        y: L.cupSpot.y,
-        duration: 250,
-        ease: 'Bounce.easeOut',
-        onUpdate: () => view.placeAt(view.x, view.y),
-      });
+      if (animate && !this.reducedMotion) {
+        // Ly rơi nhẹ xuống bảng gỗ
+        this.cupView.placeAt(L.cupSpot.x, L.cupSpot.y - 60);
+        const view = this.cupView;
+        this.tweens.add({
+          targets: view,
+          y: L.cupSpot.y,
+          duration: 250,
+          ease: 'Bounce.easeOut',
+          onUpdate: () => view.placeAt(view.x, view.y),
+        });
+      }
     }
     this.boardHint.setVisible(!cup);
 
@@ -608,12 +677,16 @@ export class ShopScene extends Phaser.Scene {
       const size = SIZES[cup.size];
       const inGreen = displayFill >= size.greenMin && displayFill <= size.greenMax;
       // Vạch xanh nhấp nháy khi đang rót và mực trà nằm trong vùng xanh
-      const blink = pouring > 0 && inGreen && Math.floor(this.time.now / 120) % 2 === 0;
-      this.cupView.render(cup, displayFill, blink);
-      this.drawStream(cup, displayFill);
+      const blink = pouring > 0 && inGreen && Math.floor(time / 120) % 2 === 0;
+      this.cupView.render(cup, displayFill, blink, pouring > 0, time, animate && !this.reducedMotion);
+      this.drawStream(cup, displayFill, time);
     }
 
-    const status = cup ? (cup.sealed && !cup.ruined ? describeCupStatus(cup) + STATUS_TEXT.separator + STATUS_TEXT.sealed : describeCupStatus(cup)) : '';
+    const status = cup
+      ? cup.sealed && !cup.ruined
+        ? describeCupStatus(cup) + STATUS_TEXT.separator + STATUS_TEXT.sealed
+        : describeCupStatus(cup)
+      : '';
     if (status !== this.lastStatus) {
       this.lastStatus = status;
       this.statusText.setText(status);
@@ -621,6 +694,8 @@ export class ShopScene extends Phaser.Scene {
       if (status) {
         const w = this.statusText.width + 50;
         const h = this.statusText.height + 16;
+        this.statusBg.fillStyle(hex(PALETTE.woodDark), 0.35);
+        this.statusBg.fillRoundedRect(L.statusText.x - w / 2, L.statusText.y - h / 2 + 4, w, h, h / 2);
         box(this.statusBg, L.statusText.x - w / 2, L.statusText.y - h / 2, w, h, {
           fill: cup?.ruined ? PALETTE.pinkLight : PALETTE.white,
           radius: h / 2,
@@ -629,21 +704,35 @@ export class ShopScene extends Phaser.Scene {
     }
   }
 
-  /** Dòng trà chảy từ trên xuống mặt nước trong ly. */
-  private drawStream(cup: CupState, displayFill: number): void {
-    this.stream.clear();
+  /** Dòng trà chảy từ trên xuống mặt nước trong ly (có giọt bắn nhỏ). */
+  private drawStream(cup: CupState, displayFill: number, time: number): void {
+    const g = this.stream;
+    g.clear();
     if (!this.pour || !this.cupView || this.dragPointer) return;
     const tea = TEAS.find((t) => t.id === this.pour?.tea);
     if (!tea) return;
     const L = this.layout;
     const h = L.cupHeight[cup.size];
-    const top = L.board.y - 10;
+    const top = L.board.y - 30;
     const surface = this.cupView.y - Math.min(displayFill, 1) * h;
-    const wobble = Math.sin(this.time.now / 60) * 2;
-    this.stream.fillStyle(hex(tea.color), 0.95);
-    this.stream.fillRoundedRect(this.cupView.x - 9 + wobble, top, 18, surface - top, 9);
-    this.stream.lineStyle(2, hex(PALETTE.outline), 0.4);
-    this.stream.strokeRoundedRect(this.cupView.x - 9 + wobble, top, 18, surface - top, 9);
+    const x = this.cupView.x;
+    const wobble = this.reducedMotion ? 0 : Math.sin(time / 60) * 2;
+    const color = hex(tea.color);
+    // Vòi rót nhỏ phía trên
+    box(g, x - 34, top - 26, 68, 26, { fill: '#D9D6D2', radius: 10 });
+    g.fillStyle(color, 0.95);
+    g.fillRoundedRect(x - 10 + wobble, top, 20, surface - top, 10);
+    g.lineStyle(2, hex(PALETTE.outline), 0.5);
+    g.strokeRoundedRect(x - 10 + wobble, top, 20, surface - top, 10);
+    // Giọt bắn ở mặt nước
+    if (!this.reducedMotion) {
+      for (let i = 0; i < 3; i++) {
+        const phase = (time / 260 + i / 3) % 1;
+        const dx = (i - 1) * 22 * phase;
+        g.fillStyle(color, 1 - phase);
+        g.fillCircle(x + dx, surface - 18 * Math.sin(phase * Math.PI), 5);
+      }
+    }
   }
 
   // ───────────────────────── Hướng dẫn lần đầu ─────────────────────────
@@ -652,7 +741,7 @@ export class ShopScene extends Phaser.Scene {
     this.registry.set('tutorialTarget', null);
     this.registry.set('tutorialDone', true);
     this.overlay.tutorial.hide();
-    this.highlight.clear();
+    this.highlight?.clear();
   }
 
   private targetRect(target: TutorialTarget): Rect | null {

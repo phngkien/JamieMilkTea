@@ -102,6 +102,13 @@ export function counterSvg(w: number, h: number): string {
 
 /** Bảng giá nhỏ treo tường. */
 export function priceBoardSvg(w = 200, h = 150, lines: string[] = []): string {
+  // Không có chữ thì vẽ vài nét phấn trang trí (chữ thật do game viết đè nếu cần)
+  const chalk = lines.length
+    ? ''
+    : [0, 1, 2]
+        .map((i) => `<path d="M28 ${54 + i * 26} h${w * 0.36 - i * 10}" stroke="#FFF7EF" stroke-width="5" stroke-linecap="round" opacity="0.8"/>
+          <path d="M${w * 0.62} ${54 + i * 26} h${w * 0.18}" stroke="#F5C65B" stroke-width="5" stroke-linecap="round" opacity="0.9"/>`)
+        .join('') + `<circle cx="${w - 34}" cy="${h - 30}" r="9" fill="#F28CA8" opacity="0.9"/>`;
   const rows = lines
     .slice(0, 4)
     .map((l, i) => `<text x="22" y="${58 + i * 24}" font-family="Nunito, sans-serif" font-weight="700" font-size="17" fill="#FFF7EF">${l}</text>`)
@@ -112,6 +119,6 @@ export function priceBoardSvg(w = 200, h = 150, lines: string[] = []): string {
     `<path d="M${w / 2} 2 L30 26 M${w / 2} 2 L${w - 30} 26" ${stroke(2.5)} fill="none"/>
      <rect x="6" y="22" width="${w - 12}" height="${h - 28}" rx="12" fill="${PALETTE.woodDark}" ${stroke()}/>
      <rect x="16" y="32" width="${w - 32}" height="${h - 48}" rx="8" fill="#56463C" ${stroke(2.5)}/>
-     ${rows}`,
+     ${rows}${chalk}`,
   );
 }

@@ -1,6 +1,6 @@
 // Sinh khách và order từ seed của ngày, để mọi máy ra cùng một kết quả.
 import { SUGAR_STEPS, ICE_STEPS } from '../config/cup';
-import { CUSTOMER_LOOKS, CUSTOMER_NAMES } from '../config/customers';
+import { CHARACTERS } from '../config/characters';
 import { TUTORIAL_PATIENCE_SECONDS, getDayConfig } from '../config/progression';
 import {
   ICE_TEXT,
@@ -55,10 +55,12 @@ export function generateCustomer(
   for (let i = 0; i < cupCount; i++) cups.push(generateCupSpec(rng, day, unlocked.teas, unlocked.toppings));
   // Khách đầu tiên của ngày 1 là khách được hướng dẫn: cho chờ lâu hơn
   const patienceSeconds = day === 1 && index === 0 ? TUTORIAL_PATIENCE_SECONDS : cfg.patienceSeconds;
+  // Mỗi khách là một nhân vật trong config/characters (tên đi kèm nhân vật)
+  const look = rng.int(0, CHARACTERS.length - 1);
   return {
     id: `c${index}`,
-    name: rng.pick(CUSTOMER_NAMES),
-    look: rng.int(0, CUSTOMER_LOOKS.length - 1),
+    name: CHARACTERS[look].name,
+    look,
     lineVariant: rng.int(0, ORDER_TEMPLATES.length - 1),
     order: { id: `o${index}`, cups, served: cups.map(() => null) },
     patience: 1,

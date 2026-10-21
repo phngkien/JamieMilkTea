@@ -47,6 +47,15 @@ export function portraitLayout(viewHeight: number): ShopLayout {
     toppings: grid(toppingArea, 4, 3, 20),
     comingSoon: { x: 30, y: 2660, w: W - 60, h: 120 },
     floor: { x: 0, y: 2810, w: W, h: worldHeight - 2810 },
+    zones: {
+      customer: { x: 0, y: HUD + 100, w: W, h: 720 - HUD - 100 },
+      tea: { x: 0, y: 720, w: W, h: 420 },
+      brew: { x: 0, y: 1140, w: W, h: 890 },
+      topping: { x: 0, y: 2030, w: W, h: 780 },
+    },
+    decor: { x: 420, y: 262, w: 420, h: 98 },
+    counterStrip: { x: 0, y: 700, w: W, h: 30 },
+    worker: { x: 900, y: 252, w: 150, h: 112 },
     sections: {
       tea: 0,
       brew: Math.min(maxScroll, 1140 - HUD - 10),

@@ -41,3 +41,30 @@ export function uid(prefix: string): string {
   uidCounter += 1;
   return `${prefix}${uidCounter}`;
 }
+
+/**
+ * Đặt một SVG con vào trong SVG lớn ở vị trí (x, y) với kích thước w×h
+ * (biến thẻ <svg> ngoài cùng thành <svg> lồng nhau, giữ nguyên viewBox).
+ */
+export function place(child: string, x: number, y: number, w: number, h: number, stretch = false): string {
+  return child.replace(
+    /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="[^"]*" height="[^"]*"/,
+    `<svg x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="${stretch ? 'none' : 'xMidYMid meet'}"`,
+  );
+}
+
+/** Đổi kích thước hiển thị (width/height) của một SVG, giữ nguyên viewBox — để vẽ ra ảnh đúng độ phân giải. */
+export function resize(source: string, w: number, h: number): string {
+  return source.replace(
+    /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="[^"]*" height="[^"]*"/,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" preserveAspectRatio="none"`,
+  );
+}
+
+/** Cắt một vùng của SVG (đổi viewBox) — dùng để chia ảnh nền lớn thành nhiều mảnh. */
+export function crop(source: string, x: number, y: number, w: number, h: number): string {
+  return source.replace(
+    /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="[^"]*" height="[^"]*" viewBox="[^"]*"/,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${x} ${y} ${w} ${h}"`,
+  );
+}

@@ -68,6 +68,7 @@ export const UI_TEXT = {
   skipTutorial: 'Bỏ qua',
   cupStack: 'Cốc {size}',
   ruined: 'Hỏng!',
+  staffName: 'Bạn',
 };
 
 export const REJECT_TEXT: Record<RejectReason, string> = {
