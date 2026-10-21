@@ -5,6 +5,13 @@ export default defineConfig({
   base: './',
   build: {
     chunkSizeWarningLimit: 2000,
+    rollupOptions: {
+      // preview.html: trang xem trước phong cách vẽ (không ảnh hưởng game)
+      input: {
+        main: 'index.html',
+        preview: 'preview.html',
+      },
+    },
   },
   test: {
     include: ['tests/**/*.test.ts'],
