@@ -1,6 +1,16 @@
 // Reducer: (state, action) → state mới + danh sách sự kiện. Mọi thay đổi trạng thái đi qua đây.
 import { BOARD_SLOTS } from '../config/cup';
-import { QUEUE_PATIENCE_FACTOR, getDayConfig } from '../config/progression';
+import {
+  START_CASH,
+  STOCK_ICE,
+  STOCK_SUGAR,
+  startingStock,
+  stockIdOfCup,
+  stockIdOfTea,
+  stockIdOfTopping,
+  getStockDef,
+} from '../config/inventory';
+import { DAY_LENGTH_MS, QUEUE_PATIENCE_FACTOR, getDayConfig } from '../config/progression';
 import { SCORING } from '../config/scoring';
 import { STARTING_TEAS } from '../config/teas';
 import { STARTING_TOPPINGS } from '../config/toppings';
@@ -13,21 +23,26 @@ import {
   tapSyrup,
   type BrewResult,
 } from './brewing';
+import { arrivalGap, closeDay, customersForDay, emptyDayStats, startDay } from './day';
 import { cupPrice } from './economy';
-import { arrivalGap } from './orders';
+import { consume, restock, unlockItem, type InventoryResult } from './inventory';
 import { scoreCup, starsFromScore } from './scoring';
 import type { Action, CupState, Customer, GameEvent, ReduceResult, RejectReason, ShopState } from './types';
 
+/** Tiệm mới tinh khi bắt đầu chơi. */
 export function createShopState(seed: number, day = 1): ShopState {
   return {
     day,
     seed,
+    phase: 'open',
     time: 0,
-    cash: 0,
+    cash: START_CASH,
+    stock: startingStock(),
     ratingSum: 0,
     ratingCount: 0,
-    servedCount: 0,
-    unhappyCount: 0,
+    today: emptyDayStats(START_CASH),
+    customersToday: customersForDay(day, 0, 0),
+    history: [],
     customers: [],
     cups: [],
     nextCustomerIndex: 0,
@@ -46,19 +61,32 @@ function replaceCup(state: ShopState, cup: CupState): ShopState {
   return { ...state, cups: state.cups.map((c) => (c.id === cup.id ? cup : c)) };
 }
 
-/** Áp dụng một thao tác pha chế lên ly có id `cupId`. */
+/**
+ * Áp dụng một thao tác pha chế lên ly `cupId`.
+ * Nếu có `stockId`: kiểm tra còn hàng trước, chỉ trừ kho khi thao tác thành công.
+ */
 function brew(
   state: ShopState,
   action: Action,
   cupId: string,
   op: (cup: CupState) => BrewResult,
   onOk: (cup: CupState) => GameEvent[],
+  stockId?: string,
 ): ReduceResult {
   const cup = state.cups.find((c) => c.id === cupId);
   if (!cup) return reject(state, action, 'noCup');
+  if (stockId && (state.stock[stockId] ?? 0) <= 0) return reject(state, action, 'outOfStock');
   const result = op(cup);
   if (!result.ok) return reject(state, action, result.reason);
-  return { state: replaceCup(state, result.cup), events: onOk(result.cup) };
+  let next = result.cup;
+  let stock = state.stock;
+  if (stockId) {
+    const used = consume(stock, stockId);
+    if (!used) return reject(state, action, 'outOfStock');
+    stock = used.stock;
+    next = { ...next, cost: next.cost + used.cost };
+  }
+  return { state: replaceCup({ ...state, stock }, next), events: onOk(next) };
 }
 
 /** Khách rời tiệm: ghi đánh giá. Bỏ đi vì chờ lâu thì tính là khách không vui. */
@@ -71,13 +99,20 @@ function removeCustomer(state: ShopState, customer: Customer, reason: 'done' | '
     stars = starsFromScore(avg);
     unhappy = avg < SCORING.unhappyBelow;
   }
+  const t = state.today;
   return {
     state: {
       ...state,
       customers: state.customers.filter((c) => c.id !== customer.id),
       ratingSum: state.ratingSum + stars,
       ratingCount: state.ratingCount + 1,
-      unhappyCount: state.unhappyCount + (unhappy ? 1 : 0),
+      today: {
+        ...t,
+        customersServed: t.customersServed + (reason === 'done' ? 1 : 0),
+        unhappy: t.unhappy + (unhappy ? 1 : 0),
+        ratingSum: t.ratingSum + stars,
+        ratingCount: t.ratingCount + 1,
+      },
     },
     events: [{ type: 'customerLeft', customerId: customer.id, name: customer.name, reason, stars }],
   };
@@ -105,6 +140,7 @@ function serveCup(state: ShopState, action: Action & { type: 'SERVE_CUP' }): Red
   if (!best || bestIndex < 0) return reject(state, action, 'noCustomer');
   const score: ReturnType<typeof scoreCup> = best;
 
+  // Khách trả theo món mình gọi
   const money = cupPrice(customer.order.cups[bestIndex]);
   const served = customer.order.served.map((s, i) => (i === bestIndex ? score.total : s));
   const updatedCustomer: Customer = { ...customer, order: { ...customer.order, served } };
@@ -115,7 +151,12 @@ function serveCup(state: ShopState, action: Action & { type: 'SERVE_CUP' }): Red
     cups: state.cups.filter((c) => c.id !== cup.id),
     customers: state.customers.map((c) => (c.id === customer.id ? updatedCustomer : c)),
     cash: state.cash + money,
-    servedCount: state.servedCount + 1,
+    today: {
+      ...state.today,
+      cupsServed: state.today.cupsServed + 1,
+      revenue: state.today.revenue + money,
+      ingredients: state.today.ingredients + cup.cost,
+    },
   };
   const events: GameEvent[] = [
     { type: 'served', cupId: cup.id, customerId: customer.id, score, money, orderComplete },
@@ -129,10 +170,14 @@ function serveCup(state: ShopState, action: Action & { type: 'SERVE_CUP' }): Red
 }
 
 function tick(state: ShopState, dt: number): ReduceResult {
+  if (state.phase === 'closed') return { state, events: [] };
   const seconds = dt / 1000;
+  const time = state.time + dt;
   let next: ShopState = {
     ...state,
-    time: state.time + dt,
+    time,
+    // Hết giờ: ngừng nhận khách mới, phục vụ nốt khách còn lại
+    phase: time >= DAY_LENGTH_MS ? 'closing' : state.phase,
     // Khách ở quầy (vị trí 0) mất kiên nhẫn nhanh nhất, người trong hàng chờ chậm hơn.
     customers: state.customers.map((c, i) => ({
       ...c,
@@ -148,38 +193,79 @@ function tick(state: ShopState, dt: number): ReduceResult {
   return { state: next, events };
 }
 
+function inventoryResult(state: ShopState, action: Action, result: InventoryResult, event: GameEvent): ReduceResult {
+  if (!result.ok) return reject(state, action, result.reason);
+  return { state: result.state, events: [event] };
+}
+
+/** Các thao tác pha chế / phục vụ chỉ làm được khi tiệm chưa đóng cửa. */
+const NEEDS_OPEN_SHOP = new Set<Action['type']>([
+  'PICK_CUP',
+  'POUR_TEA',
+  'TAP_SYRUP',
+  'SCOOP_ICE',
+  'ADD_TOPPING',
+  'SEAL_CUP',
+  'SERVE_CUP',
+  'DISCARD_CUP',
+  'CUSTOMER_ARRIVE',
+]);
+
 export function reduce(state: ShopState, action: Action): ReduceResult {
+  if (state.phase === 'closed' && NEEDS_OPEN_SHOP.has(action.type)) return reject(state, action, 'dayClosed');
   switch (action.type) {
     case 'PICK_CUP': {
       if (state.cups.length >= BOARD_SLOTS) return reject(state, action, 'boardFull');
-      const cup = createCup(`cup${state.nextCupNumber}`, action.size);
+      const used = consume(state.stock, stockIdOfCup(action.size));
+      if (!used) return reject(state, action, 'outOfStock');
+      const cup = createCup(`cup${state.nextCupNumber}`, action.size, used.cost);
       return {
-        state: { ...state, cups: [...state.cups, cup], nextCupNumber: state.nextCupNumber + 1 },
+        state: { ...state, stock: used.stock, cups: [...state.cups, cup], nextCupNumber: state.nextCupNumber + 1 },
         events: [{ type: 'cupPicked', cupId: cup.id }],
       };
     }
-    case 'POUR_TEA':
+    case 'POUR_TEA': {
       if (!state.unlockedTeas.includes(action.tea)) return reject(state, action, 'locked');
-      return brew(state, action, action.cupId, (c) => pourTea(c, action.tea, action.amount), (c) =>
-        c.ruined ? [{ type: 'cupRuined', cupId: c.id }] : [{ type: 'poured', cupId: c.id }],
+      const cup = state.cups.find((c) => c.id === action.cupId);
+      // Mỗi ly trừ 1 đơn vị trà, lúc bắt đầu rót vào ly rỗng
+      const stockId = cup && cup.tea === null ? stockIdOfTea(action.tea) : undefined;
+      return brew(
+        state,
+        action,
+        action.cupId,
+        (c) => pourTea(c, action.tea, action.amount),
+        (c) => (c.ruined ? [{ type: 'cupRuined', cupId: c.id }] : [{ type: 'poured', cupId: c.id }]),
+        stockId,
       );
+    }
     case 'TAP_SYRUP':
-      return brew(state, action, action.cupId, tapSyrup, (c) => [{ type: 'syrupTapped', cupId: c.id }]);
+      return brew(state, action, action.cupId, tapSyrup, (c) => [{ type: 'syrupTapped', cupId: c.id }], STOCK_SUGAR);
     case 'SCOOP_ICE':
-      return brew(state, action, action.cupId, scoopIce, (c) => [{ type: 'iceScooped', cupId: c.id }]);
+      return brew(state, action, action.cupId, scoopIce, (c) => [{ type: 'iceScooped', cupId: c.id }], STOCK_ICE);
     case 'ADD_TOPPING':
       if (!state.unlockedToppings.includes(action.topping)) return reject(state, action, 'locked');
-      return brew(state, action, action.cupId, (c) => addTopping(c, action.topping), (c) => [
-        { type: 'toppingAdded', cupId: c.id, topping: action.topping },
-      ]);
+      return brew(
+        state,
+        action,
+        action.cupId,
+        (c) => addTopping(c, action.topping),
+        (c) => [{ type: 'toppingAdded', cupId: c.id, topping: action.topping }],
+        stockIdOfTopping(action.topping),
+      );
     case 'SEAL_CUP':
       return brew(state, action, action.cupId, sealCup, (c) => [{ type: 'cupSealed', cupId: c.id }]);
     case 'SERVE_CUP':
       return serveCup(state, action);
     case 'DISCARD_CUP': {
-      if (!state.cups.some((c) => c.id === action.cupId)) return reject(state, action, 'noCup');
+      const cup = state.cups.find((c) => c.id === action.cupId);
+      if (!cup) return reject(state, action, 'noCup');
+      // Nguyên liệu của ly bỏ đi tính là hao phí
       return {
-        state: { ...state, cups: state.cups.filter((c) => c.id !== action.cupId) },
+        state: {
+          ...state,
+          cups: state.cups.filter((c) => c.id !== action.cupId),
+          today: { ...state.today, waste: state.today.waste + cup.cost, wasteCups: state.today.wasteCups + 1 },
+        },
         events: [{ type: 'cupDiscarded', cupId: action.cupId }],
       };
     }
@@ -189,7 +275,8 @@ export function reduce(state: ShopState, action: Action): ReduceResult {
           ...state,
           customers: [...state.customers, action.customer],
           nextCustomerIndex: state.nextCustomerIndex + 1,
-          nextArrivalAt: state.time + arrivalGap(state.seed, state.nextCustomerIndex, state.day),
+          nextArrivalAt:
+            state.time + arrivalGap(state.seed, state.day, state.nextCustomerIndex, state.customersToday),
         },
         events: [{ type: 'customerArrived', customerId: action.customer.id }],
       };
@@ -200,5 +287,28 @@ export function reduce(state: ShopState, action: Action): ReduceResult {
     }
     case 'TICK':
       return tick(state, action.dt);
+    case 'RESTOCK':
+      return inventoryResult(state, action, restock(state, action.item), {
+        type: 'restocked',
+        item: action.item,
+        amount: getStockDef(action.item).packSize,
+        price: getStockDef(action.item).packPrice,
+      });
+    case 'UNLOCK_ITEM':
+      return inventoryResult(state, action, unlockItem(state, action.kind, action.id), {
+        type: 'unlocked',
+        kind: action.kind,
+        id: action.id,
+      });
+    case 'END_DAY': {
+      if (state.phase === 'closed') return reject(state, action, 'dayClosed');
+      const { state: closed, summary } = closeDay(state);
+      return { state: closed, events: [{ type: 'dayEnded', summary }] };
+    }
+    case 'START_DAY': {
+      if (state.phase !== 'closed') return reject(state, action, 'unknown');
+      const day = state.day + 1;
+      return { state: startDay(state, day), events: [{ type: 'dayStarted', day }] };
+    }
   }
 }

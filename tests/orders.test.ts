@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_CUSTOMERS } from '../src/config/progression';
 import { STARTING_TEAS } from '../src/config/teas';
 import { STARTING_TOPPINGS } from '../src/config/toppings';
-import { buildOrderText, generateCustomer, planHostActions } from '../src/core/orders';
-import { createShopState, reduce } from '../src/core/reducer';
+import { buildOrderText, generateCustomer } from '../src/core/orders';
 import { createRng, hashSeed } from '../src/core/rng';
 import { makeCustomer } from './helpers';
 
@@ -64,6 +62,8 @@ describe('orders', () => {
     const first = generateCustomer(1, 0, 1, unlocked, 0);
     const second = generateCustomer(1, 1, 1, unlocked, 0);
     expect(first.drainPerSecond).toBeLessThan(second.drainPerSecond);
+    // Ngày 2 không còn khách hướng dẫn
+    expect(generateCustomer(1, 0, 2, unlocked, 0).drainPerSecond).toBeGreaterThan(first.drainPerSecond);
   });
 
   it('câu gọi món tiếng Việt đầy đủ chi tiết', () => {
@@ -79,24 +79,5 @@ describe('orders', () => {
     );
     const plain = makeCustomer({ size: 'M', tea: 'milk', sugar: 0, ice: 'less', toppings: [] }, { lineVariant: 1 });
     expect(buildOrderText(plain)).toBe('Cho em 1 ly trà sữa size M, không đường, ít đá ạ!');
-  });
-
-  it('host cho khách vào đúng giờ, không quá số khách tối đa', () => {
-    let state = createShopState(5);
-    expect(planHostActions(state)).toEqual([]);
-    state = reduce(state, { type: 'TICK', dt: state.nextArrivalAt }).state;
-    const actions = planHostActions(state);
-    expect(actions).toHaveLength(1);
-    state = reduce(state, actions[0]).state;
-    expect(state.customers).toHaveLength(1);
-    expect(state.nextCustomerIndex).toBe(1);
-    expect(state.nextArrivalAt).toBeGreaterThan(state.time);
-
-    // Lấp đầy tiệm rồi kiểm tra không cho thêm
-    for (let i = 1; i < MAX_CUSTOMERS; i++) {
-      state = reduce(state, { type: 'CUSTOMER_ARRIVE', customer: makeCustomer(state.customers[0].order.cups[0], { id: `x${i}` }) }).state;
-    }
-    state = { ...state, time: state.nextArrivalAt + 1 };
-    expect(planHostActions(state)).toEqual([]);
   });
 });

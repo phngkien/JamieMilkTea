@@ -18,6 +18,7 @@ function perfectCup(spec: CupSpec = SPEC): CupState {
     toppings: spec.toppings.map((t) => ({ ...t })),
     sealed: true,
     ruined: false,
+    cost: 0,
   };
 }
 

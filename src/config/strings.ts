@@ -84,7 +84,72 @@ export const REJECT_TEXT: Record<RejectReason, string> = {
   notSealed: 'Ép nắp trước khi giao nhé',
   noCustomer: 'Chưa có khách để giao',
   emptyCup: 'Ly còn rỗng, rót trà trước nhé',
+  outOfStock: 'Hết hàng rồi! Vào Kho để nhập thêm',
+  noMoney: 'Két không đủ tiền',
+  tooEarly: 'Chưa tới ngày mở được món này',
+  alreadyUnlocked: 'Món này đã mở rồi',
+  dayClosed: 'Tiệm đã đóng cửa',
   unknown: 'Không làm được',
+};
+
+/** Màn Kho. */
+export const STOCK_TEXT = {
+  title: 'Kho hàng',
+  cash: 'Két: {cash}',
+  ingredients: 'Nguyên liệu',
+  newItems: 'Món mới',
+  inStock: 'Còn {n}',
+  restock: 'Nhập +{n} · {price}',
+  unlock: 'Mở khóa · {price}',
+  fromDay: 'Từ ngày {day}',
+  unlockGift: 'Tặng kèm 1 gói khi mở',
+  tea: 'Trà',
+  topping: 'Topping',
+  close: 'Đóng',
+  restocked: 'Đã nhập +{n} {name}',
+  unlocked: 'Đã mở khóa {name}!',
+  lowWarning: '{name} sắp hết!',
+  outWarning: '{name} đã hết!',
+};
+
+/** Bảng "Hết ngày N". */
+export const SUMMARY_TEXT = {
+  title: 'Hết ngày {day}',
+  customers: 'Khách đã phục vụ',
+  unhappy: 'Khách không vui',
+  stars: 'Sao trong ngày',
+  revenue: 'Doanh thu',
+  costs: 'Chi phí',
+  ingredients: 'Nguyên liệu đã dùng ({n} ly)',
+  waste: 'Hao phí: {n} ly hỏng / bỏ',
+  rent: 'Tiền thuê tiệm',
+  profit: 'Lãi',
+  loss: 'Lỗ',
+  cashTitle: 'Két',
+  cashStart: 'Két đầu ngày',
+  cashRevenue: 'Tiền bán ly',
+  cashRestock: 'Nhập hàng',
+  cashUnlock: 'Mở khóa món mới',
+  cashRent: 'Tiền thuê tiệm',
+  cashEnd: 'Két cuối ngày',
+  next: 'Ngày {day} →',
+  closing: 'Hết giờ! Phục vụ nốt khách còn lại rồi đóng cửa nhé',
+};
+
+/** Cài đặt và chơi lại. */
+export const SETTINGS_TEXT = {
+  title: 'Cài đặt',
+  tutorial: 'Bật lại hướng dẫn',
+  tutorialOn: 'Đã bật lại hướng dẫn cho khách tiếp theo',
+  reset: 'Chơi lại từ đầu',
+  resetConfirm1: 'Chơi lại từ đầu sẽ xóa hết tiến trình: ngày, két, kho, món đã mở. Bạn chắc chứ?',
+  resetConfirm2: 'Hỏi lần cuối nhé: xóa hết và chơi lại từ Ngày 1?',
+  resetYes1: 'Có, chơi lại',
+  resetYes2: 'Xóa hết thật',
+  cancel: 'Thôi',
+  close: 'Đóng',
+  welcomeBack: 'Chào mừng quay lại! Ngày {day}',
+  savedLocally: 'Tiến trình được lưu trên máy này.',
 };
 
 export const EVENT_TEXT = {

@@ -13,7 +13,8 @@ export type BrewResult =
   | { ok: true; cup: CupState }
   | { ok: false; reason: RejectReason };
 
-export function createCup(id: string, size: Size): CupState {
+/** Ly mới. `cost` là giá vốn ban đầu (giá cái cốc). */
+export function createCup(id: string, size: Size, cost = 0): CupState {
   return {
     id,
     size,
@@ -24,6 +25,7 @@ export function createCup(id: string, size: Size): CupState {
     toppings: [],
     sealed: false,
     ruined: false,
+    cost,
   };
 }
 

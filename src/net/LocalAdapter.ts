@@ -1,5 +1,5 @@
 // Chơi đơn: áp dụng action ngay trên máy này.
-import { planHostActions } from '../core/orders';
+import { planHostActions } from '../core/day';
 import { reduce } from '../core/reducer';
 import type { Action, GameEvent, ShopState } from '../core/types';
 import type { NetAdapter, StateListener } from './NetAdapter';

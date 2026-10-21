@@ -1,14 +1,23 @@
-// Độ khó theo ngày (CLAUDE.md mục 9.6). Thời gian tính bằng mili giây.
+// Độ khó theo ngày (CLAUDE.md mục 9.6) và đồng hồ ngày (mục 9.5). Thời gian tính bằng mili giây.
+
+/** Một ngày trong game dài bao nhiêu thời gian thật (mặc định 6 phút). */
+export const DAY_LENGTH_MS = 6 * 60 * 1000;
+/** Giờ mở cửa và đóng cửa trong game (giờ, 0–24). */
+export const OPEN_HOUR = 8;
+export const CLOSE_HOUR = 20;
+/** Khách đến rải đều trong phần đầu ngày này (để kịp phục vụ trước giờ đóng cửa). */
+export const ARRIVAL_SPREAD = 0.8;
+/** Khoảng cách giữa hai khách lệch ngẫu nhiên ± tỉ lệ này. */
+export const ARRIVAL_JITTER = 0.35;
+
 export interface DayConfig {
   day: number;
+  /** Số khách trong ngày (chưa tính khách thêm nhờ sao cao). */
+  customers: number;
   /** Khách đầu tiên đến sau bao lâu kể từ lúc mở cửa. */
   firstArrivalMs: number;
-  /** Khoảng cách giữa hai khách: ngẫu nhiên trong [min, max]. */
-  arrivalGapMs: [number, number];
   /** Số giây để thanh kiên nhẫn chạy từ đầy về 0 khi khách đứng ở quầy. */
   patienceSeconds: number;
-  /** Khách đầu tiên của ngày (lúc có hướng dẫn) kiên nhẫn lâu hơn. */
-  firstCustomerPatienceSeconds: number;
   /** Tỉ lệ order có 2 ly. */
   twoCupChance: number;
   /** Trọng số số loại topping trong một ly: [0 loại, 1 loại, 2 loại]. */
@@ -18,22 +27,28 @@ export interface DayConfig {
 }
 
 export const DAYS: DayConfig[] = [
-  {
-    day: 1,
-    firstArrivalMs: 1500,
-    arrivalGapMs: [15000, 25000],
-    patienceSeconds: 90,
-    firstCustomerPatienceSeconds: 300,
-    twoCupChance: 0,
-    toppingCountWeights: [3, 5, 2],
-    doubleScoopChance: 0.2,
-  },
+  { day: 1, customers: 10, firstArrivalMs: 1500, patienceSeconds: 90, twoCupChance: 0, toppingCountWeights: [3, 5, 2], doubleScoopChance: 0.2 },
+  { day: 2, customers: 12, firstArrivalMs: 1500, patienceSeconds: 85, twoCupChance: 0.1, toppingCountWeights: [3, 5, 2], doubleScoopChance: 0.25 },
+  { day: 3, customers: 14, firstArrivalMs: 1500, patienceSeconds: 80, twoCupChance: 0.15, toppingCountWeights: [2, 5, 3], doubleScoopChance: 0.3 },
+  { day: 4, customers: 16, firstArrivalMs: 1500, patienceSeconds: 75, twoCupChance: 0.2, toppingCountWeights: [2, 5, 3], doubleScoopChance: 0.3 },
+  { day: 5, customers: 18, firstArrivalMs: 1500, patienceSeconds: 70, twoCupChance: 0.25, toppingCountWeights: [2, 4, 4], doubleScoopChance: 0.35 },
+];
+
+/** Khách đầu tiên của ngày 1 (lúc có hướng dẫn) kiên nhẫn lâu hơn. */
+export const TUTORIAL_PATIENCE_SECONDS = 300;
+
+/** Sao trung bình cao thì có thêm khách mỗi ngày: [sao tối thiểu, số khách thêm]. Xét từ cao xuống thấp. */
+export const RATING_BONUS: [number, number][] = [
+  [4.5, 2],
+  [4.0, 1],
 ];
 
 /** Khách đang chờ trong hàng (không tính người đang ở quầy) giảm kiên nhẫn chậm hơn. */
 export const QUEUE_PATIENCE_FACTOR = 0.5;
 /** Tối đa số khách trong tiệm: 1 ở quầy + 3 trong hàng chờ. */
 export const MAX_CUSTOMERS = 4;
+/** Lịch sử tổng kết giữ tối đa bao nhiêu ngày gần nhất. */
+export const HISTORY_LIMIT = 60;
 
 export function getDayConfig(day: number): DayConfig {
   // Ngày chưa có trong bảng thì dùng ngày cuối cùng có cấu hình.

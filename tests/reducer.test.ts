@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SIZES } from '../src/config/cup';
+import { START_CASH } from '../src/config/inventory';
 import { createShopState, reduce } from '../src/core/reducer';
 import { run, stateWithCustomer } from './helpers';
 
@@ -20,12 +21,15 @@ describe('reducer', () => {
     ]);
     const served = events.find((e) => e.type === 'served');
     expect(served && served.type === 'served' && served.score.total).toBe(100);
-    expect(state.cash).toBe(30000 + 8000); // matcha 30k + trân châu trắng 8k
+    expect(state.cash).toBe(START_CASH + 30000 + 8000); // matcha 30k + trân châu trắng 8k
+    expect(state.today.revenue).toBe(38000);
+    expect(state.today.cupsServed).toBe(1);
+    expect(state.today.customersServed).toBe(1);
     expect(state.customers).toHaveLength(0);
     expect(state.cups).toHaveLength(0);
     expect(state.ratingCount).toBe(1);
     expect(state.ratingSum).toBe(5);
-    expect(state.unhappyCount).toBe(0);
+    expect(state.today.unhappy).toBe(0);
     expect(events.some((e) => e.type === 'customerLeft' && e.reason === 'done')).toBe(true);
   });
 
@@ -38,7 +42,7 @@ describe('reducer', () => {
     ]);
     const served = events.find((e) => e.type === 'served');
     expect(served && served.type === 'served' && served.score.total).toBeLessThanOrEqual(40);
-    expect(state.unhappyCount).toBe(1);
+    expect(state.today.unhappy).toBe(1);
   });
 
   it('rót tràn thì ly hỏng, không giao được, bỏ vào thùng rác được', () => {
@@ -97,7 +101,7 @@ describe('reducer', () => {
     state = result.state;
     result = reduce(state, { type: 'TICK', dt: 31_000 });
     expect(result.state.customers).toHaveLength(0);
-    expect(result.state.unhappyCount).toBe(1);
+    expect(result.state.today.unhappy).toBe(1);
     expect(result.events).toContainEqual(
       expect.objectContaining({ type: 'customerLeft', reason: 'impatient' }),
     );

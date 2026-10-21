@@ -40,6 +40,8 @@ export interface CupState {
   sealed: boolean;
   /** Bị tràn: không giao được, chỉ bỏ vào thùng rác. */
   ruined: boolean;
+  /** Giá vốn nguyên liệu đã dùng cho ly này (đồng). */
+  cost: number;
 }
 
 export interface Customer {
@@ -57,17 +59,54 @@ export interface Customer {
   arrivedAt: number;
 }
 
+/** Số liệu trong ngày, dùng cho bảng "Hết ngày N". Tiền tính bằng đồng. */
+export interface DayStats {
+  cashStart: number;
+  /** Số khách đã phục vụ xong (giao đủ ly). */
+  customersServed: number;
+  cupsServed: number;
+  /** Khách không vui: dưới 50 điểm hoặc bỏ đi. */
+  unhappy: number;
+  ratingSum: number;
+  ratingCount: number;
+  revenue: number;
+  /** Giá vốn nguyên liệu của các ly đã bán. */
+  ingredients: number;
+  /** Nguyên liệu của ly bị bỏ (đổ, tràn). */
+  waste: number;
+  wasteCups: number;
+  restock: number;
+  unlock: number;
+  rent: number;
+}
+
+export interface DaySummary extends DayStats {
+  day: number;
+  /** Lãi = doanh thu − nguyên liệu đã dùng − hao phí − tiền thuê. */
+  profit: number;
+  cashEnd: number;
+}
+
+/** open: đang mở cửa · closing: hết giờ, phục vụ nốt khách · closed: đã đóng, đang xem tổng kết. */
+export type DayPhase = 'open' | 'closing' | 'closed';
+
 export interface ShopState {
   day: number;
   seed: number;
+  phase: DayPhase;
   /** Thời gian đã trôi trong ngày (ms). */
   time: number;
-  /** Tổng tiền thu được (đồng). Két đầy đủ làm ở Prompt 2. */
+  /** Tiền trong két (đồng). */
   cash: number;
+  /** Số tồn của từng nguyên liệu (xem config/inventory). */
+  stock: Record<string, number>;
+  /** Đánh giá tích lũy từ trước tới nay. */
   ratingSum: number;
   ratingCount: number;
-  servedCount: number;
-  unhappyCount: number;
+  today: DayStats;
+  /** Số khách sẽ đến trong ngày hôm nay. */
+  customersToday: number;
+  history: DaySummary[];
   /** customers[0] là khách đang ở quầy, phía sau là hàng chờ. */
   customers: Customer[];
   /** Các ly đang nằm trên bảng gỗ. */
@@ -90,7 +129,11 @@ export type Action =
   | { type: 'DISCARD_CUP'; cupId: string }
   | { type: 'CUSTOMER_ARRIVE'; customer: Customer }
   | { type: 'CUSTOMER_LEAVE'; customerId: string }
-  | { type: 'TICK'; dt: number };
+  | { type: 'TICK'; dt: number }
+  | { type: 'RESTOCK'; item: string }
+  | { type: 'UNLOCK_ITEM'; kind: 'tea' | 'topping'; id: string }
+  | { type: 'END_DAY' }
+  | { type: 'START_DAY' };
 
 export type RejectReason =
   | 'boardFull'
@@ -106,6 +149,11 @@ export type RejectReason =
   | 'notSealed'
   | 'noCustomer'
   | 'emptyCup'
+  | 'outOfStock'
+  | 'noMoney'
+  | 'tooEarly'
+  | 'alreadyUnlocked'
+  | 'dayClosed'
   | 'unknown';
 
 export interface CupScore {
@@ -149,7 +197,11 @@ export type GameEvent =
       name: string;
       reason: 'done' | 'impatient';
       stars: number;
-    };
+    }
+  | { type: 'restocked'; item: string; amount: number; price: number }
+  | { type: 'unlocked'; kind: 'tea' | 'topping'; id: string }
+  | { type: 'dayEnded'; summary: DaySummary }
+  | { type: 'dayStarted'; day: number };
 
 export interface ReduceResult {
   state: ShopState;
