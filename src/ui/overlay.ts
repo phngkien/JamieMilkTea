@@ -1,8 +1,12 @@
 // Lớp DOM phủ đúng lên vùng canvas: HUD, thanh nút, thông báo, hướng dẫn và các màn Kho / Tổng kết / Cài đặt.
 // Kích thước chữ/nút tính theo đơn vị khung (--u).
 import { LOW_STOCK_AT, STOCK, getStockDef, stockIdOfTea, stockIdOfTopping } from '../config/inventory';
-import { EMOTE_TEXT, ROOM_TEXT, SETTINGS_TEXT, STOCK_TEXT, fill } from '../config/strings';
-import type { GameEvent, ShopState } from '../core/types';
+import { getUpgrade } from '../config/upgrades';
+import { EMOTE_TEXT, ROOM_TEXT, SETTINGS_TEXT, SHOP_TEXT, STOCK_TEXT, WARDROBE_TEXT, fill } from '../config/strings';
+import { getOutfit } from '../config/outfits';
+import type { OutfitResult } from '../core/profile';
+import type { GameEvent, Profile, ShopState } from '../core/types';
+import type { AccountInfo } from '../net/cloud';
 import type { ShopLayout } from '../layout';
 import type { Sfx } from '../audio/Sfx';
 import type { EmoteKind, NetAdapter } from '../net/NetAdapter';
@@ -11,10 +15,12 @@ import { Hud } from './hud';
 import { Modal } from './modal';
 import { QuickNav, type Section } from './quickNav';
 import { renderSettings } from './settingsScreen';
+import { renderShopScreen, shopScreenKey, type ShopScreenView } from './shopScreen';
 import { renderStockScreen, stockScreenKey } from './stockScreen';
 import { renderSummary } from './summaryScreen';
 import { Toast } from './toast';
 import { TutorialCard } from './tutorial';
+import { renderWardrobe } from './wardrobeScreen';
 
 export interface OverlayHooks {
   /** Bật lại hướng dẫn. */
@@ -25,6 +31,12 @@ export interface OverlayHooks {
   getSettings: () => Settings;
   onSettings: (change: Partial<Settings>) => void;
   sfx: Sfx;
+  getProfile: () => Profile;
+  getAccount: () => AccountInfo | null;
+  /** Mình là chủ tiệm đang chơi. */
+  isOwner: () => boolean;
+  buyOutfit: (id: string) => OutfitResult;
+  wearOutfit: (id: string) => OutfitResult;
 }
 
 export class Overlay {
@@ -42,6 +54,8 @@ export class Overlay {
   onSkipTutorial: () => void = () => {};
   /** Do main gán: bấm nút Mời bạn. */
   onInvite: () => void = () => {};
+  /** Do main gán: mở màn Tài khoản. */
+  onAccount: () => void = () => {};
   private unbind: (() => void) | null = null;
   private clickSoundBound = false;
   private emoteBar: HTMLElement;
@@ -49,6 +63,7 @@ export class Overlay {
   private adapter: NetAdapter | null = null;
   private hooks: OverlayHooks | null = null;
   private stockKey = '';
+  private shopKey = '';
   private prevStock: Record<string, number> | null = null;
 
   constructor(root: HTMLElement) {
@@ -59,6 +74,7 @@ export class Overlay {
       () => this.openStock(),
       () => this.toggleSound(),
       () => this.onInvite(),
+      () => this.openShop(),
     );
     this.nav = new QuickNav(root.querySelector('#quicknav')!, (s) => this.onJump(s), () => this.openStock());
     this.toast = new Toast(root.querySelector('#toast')!);
@@ -114,6 +130,12 @@ export class Overlay {
   private onState(state: ShopState, events: GameEvent[]): void {
     this.hud.update(state);
     for (const e of events) {
+      if (e.type === 'upgraded') {
+        const def = getUpgrade(e.id);
+        if (def) this.toast.show(fill(SHOP_TEXT.bought, { name: def.name }));
+      } else if (e.type === 'renamed' && this.modal.current === 'shop') {
+        this.toast.show(SHOP_TEXT.renamed);
+      }
       if (e.type === 'restocked') {
         this.toast.show(fill(STOCK_TEXT.restocked, { n: e.amount, name: getStockDef(e.item).name }));
       } else if (e.type === 'unlocked') {
@@ -123,7 +145,8 @@ export class Overlay {
         this.tutorial.hide();
         // Chơi chung: chỉ chủ phòng bấm sang ngày mới, người khác chờ
         const canNext = this.adapter?.isHost ?? true;
-        this.modal.open('summary', renderSummary(e.summary, canNext ? null : ROOM_TEXT.waitNextDay), (action) => {
+        const myTips = this.adapter ? (e.summary.staff[this.adapter.localId]?.tips ?? 0) : 0;
+        this.modal.open('summary', renderSummary(e.summary, canNext ? null : ROOM_TEXT.waitNextDay, myTips), (action) => {
           if (action === 'next') {
             this.modal.close();
             this.adapter?.dispatch({ type: 'START_DAY' });
@@ -135,12 +158,66 @@ export class Overlay {
     }
     this.checkStockWarnings(state);
     if (this.modal.current === 'stock') {
-      const key = stockScreenKey(state);
+      const key = stockScreenKey(state) + String(this.adapter?.canSpend());
       if (key !== this.stockKey) {
         this.stockKey = key;
-        this.modal.update(renderStockScreen(state));
+        this.modal.update(renderStockScreen(state, this.adapter?.canSpend() ?? true));
       }
     }
+    if (this.modal.current === 'shop') {
+      const view = this.shopView();
+      const key = view ? shopScreenKey(view) : '';
+      if (view && key !== this.shopKey) {
+        this.shopKey = key;
+        this.modal.update(renderShopScreen(view));
+      }
+    }
+  }
+
+  private shopView(): ShopScreenView | null {
+    if (!this.adapter || !this.hooks) return null;
+    return {
+      state: this.adapter.getState(),
+      isOwner: this.hooks.isOwner(),
+      canSpend: this.adapter.canSpend(),
+      guest: this.hooks.getAccount()?.anonymous ?? true,
+      inRoom: this.adapter.mode === 'room',
+    };
+  }
+
+  /** Màn "Tiệm của tôi" (bấm tên tiệm trên HUD). */
+  openShop(): void {
+    const view = this.shopView();
+    if (!view || this.modal.current === 'summary') return;
+    this.shopKey = shopScreenKey(view);
+    this.modal.open('shop', renderShopScreen(view), (action, data) => {
+      const adapter = this.adapter;
+      if (!adapter) return;
+      if (action === 'close') this.modal.close();
+      else if (action === 'buy-upgrade' && data.id) adapter.dispatch({ type: 'BUY_UPGRADE', id: data.id });
+      else if (action === 'rename') {
+        const input = document.getElementById('shop-name') as HTMLInputElement | null;
+        const name = input?.value.trim() ?? '';
+        if (name && name !== adapter.getState().shopName) adapter.dispatch({ type: 'RENAME_SHOP', name });
+      } else if (action === 'wardrobe') this.openWardrobe();
+      else if (action === 'account') this.onAccount();
+      else if (action === 'room') this.onInvite();
+    });
+  }
+
+  /** Tủ đồ: mua / mặc outfit bằng tiền tip. */
+  openWardrobe(): void {
+    const hooks = this.hooks;
+    if (!hooks || this.modal.current === 'summary') return;
+    this.modal.open('wardrobe', renderWardrobe(hooks.getProfile()), (action, data) => {
+      if (action === 'close') this.modal.close();
+      else if ((action === 'buy-outfit' || action === 'wear') && data.id) {
+        const r = action === 'buy-outfit' ? hooks.buyOutfit(data.id) : hooks.wearOutfit(data.id);
+        if (r.ok && action === 'buy-outfit') this.toast.show(fill(WARDROBE_TEXT.bought, { name: getOutfit(data.id).name }));
+        if (!r.ok && r.reason === 'noTips') this.toast.show(WARDROBE_TEXT.noTips, 'warn');
+        this.modal.update(renderWardrobe(hooks.getProfile()));
+      }
+    });
   }
 
   /** Báo khi một nguyên liệu vừa xuống mức "sắp hết" hoặc vừa hết. Nút Kho có chấm cảnh báo. */
@@ -180,8 +257,8 @@ export class Overlay {
     const adapter = this.adapter;
     if (!adapter || this.modal.current === 'summary') return;
     const state = adapter.getState();
-    this.stockKey = stockScreenKey(state);
-    this.modal.open('stock', renderStockScreen(state), (action, data) => {
+    this.stockKey = stockScreenKey(state) + String(adapter.canSpend());
+    this.modal.open('stock', renderStockScreen(state, adapter.canSpend()), (action, data) => {
       if (action === 'close') this.modal.close();
       else if (action === 'restock' && data.item) adapter.dispatch({ type: 'RESTOCK', item: data.item });
       else if (action === 'unlock' && data.id && (data.kind === 'tea' || data.kind === 'topping')) {

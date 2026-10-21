@@ -1,25 +1,43 @@
 // Điểm khởi động: đọc bản lưu, tạo logic (LocalAdapter), lớp DOM overlay và game Phaser.
 // Vào phòng chơi chung thì đổi sang FirebaseAdapter; rời phòng thì quay lại LocalAdapter.
+// Dữ liệu người chơi (tiệm, profile, cài đặt) do PlayerStore giữ: lưu trên máy + đồng bộ cloud.
 import Phaser from 'phaser';
 import './style.css';
 import { Sfx } from './audio/Sfx';
 import { PALETTE } from './config/palette';
-import { SETTINGS_TEXT, fill } from './config/strings';
+import { ACCOUNT_TEXT, SETTINGS_TEXT, TIP_TEXT, fill } from './config/strings';
 import { startDay } from './core/day';
+import { formatMoney } from './core/economy';
+import { buyOutfit, wearOutfit } from './core/profile';
 import { createShopState } from './core/reducer';
-import type { GameEvent, ShopState } from './core/types';
+import type { GameEvent, Profile, ShopState } from './core/types';
 import { chooseLayout, type ShopLayout } from './layout';
+import type { FirebaseAdapter } from './net/FirebaseAdapter';
 import { LocalAdapter } from './net/LocalAdapter';
 import type { NetAdapter } from './net/NetAdapter';
+import { PlayerStore } from './save/PlayerStore';
 import { SaveRepository } from './save/SaveRepository';
-import { createSave, defaultSettings, restoreShop, type Settings } from './save/schema';
+import { createSave, defaultSettings, restoreShop, type Settings, type ShopSave } from './save/schema';
 import { BootScene } from './scenes/BootScene';
 import { ShopScene } from './scenes/ShopScene';
+import { AccountController } from './ui/accountController';
 import { Overlay } from './ui/overlay';
 import { RoomController } from './ui/roomController';
 
 /** Các sự kiện làm game tự lưu (CLAUDE.md mục 10). */
-const SAVE_EVENTS = new Set<GameEvent['type']>(['served', 'restocked', 'unlocked', 'dayEnded', 'dayStarted']);
+const SAVE_EVENTS = new Set<GameEvent['type']>([
+  'served',
+  'restocked',
+  'unlocked',
+  'upgraded',
+  'renamed',
+  'dayEnded',
+  'dayStarted',
+]);
+
+/** Mã lượt chơi mới (mỗi lần mở game / mở phòng / tải tiệm từ cloud). */
+const newRunId = () => Math.random().toString(36).slice(2, 10);
+const newSeed = () => Math.floor(Math.random() * 2 ** 31);
 
 async function start(): Promise<void> {
   const gameParent = document.getElementById('game')!;
@@ -28,10 +46,36 @@ async function start(): Promise<void> {
 
   // Có bản lưu thì chơi tiếp từ lúc mở cửa của ngày đang chơi; không có thì tiệm mới.
   const saved = await repo.load();
-  const settings: Settings = saved?.settings ?? defaultSettings();
-  const initial = saved ? restoreShop(saved) : createShopState(Math.floor(Math.random() * 2 ** 31), 1);
-  let adapter: NetAdapter = new LocalAdapter(initial);
+  const initial = saved ? restoreShop(saved, newRunId()) : createShopState(newSeed(), 1, newRunId());
+  // Gán ngay bên dưới, sau khi có store (cần outfit trong profile)
+  let adapter!: NetAdapter;
   let unsubSave: (() => void) | null = null;
+
+  const store = new PlayerStore(repo, saved ?? createSave(initial, defaultSettings()), {
+    getAdapter: () => adapter,
+    replaceShop: (shop: ShopSave) => {
+      if (adapter.mode !== 'solo') return;
+      switchAdapter(newLocal(restoreShop({ shop }, newRunId())));
+    },
+    onProfile: (profile: Profile) => applyOutfit(profile.outfit),
+    onAccount: () => accounts.refresh(),
+    notify: (message) =>
+      overlay.toast.show(message === 'shopFromCloud' ? ACCOUNT_TEXT.shopFromCloud : ACCOUNT_TEXT.shopConflict, 'info', 3500),
+  });
+  const settings: Settings = store.settings;
+
+  const newLocal = (state: ShopState) => {
+    const local = new LocalAdapter(state);
+    local.setOutfit(store.profile.outfit);
+    return local;
+  };
+  adapter = newLocal(initial);
+
+  /** Nhân viên của mình mặc outfit mới (chơi một mình hoặc trong phòng). */
+  const applyOutfit = (outfit: string) => {
+    if (adapter.mode === 'solo') (adapter as LocalAdapter).setOutfit(outfit);
+    else void (adapter as FirebaseAdapter).setOutfit(outfit);
+  };
 
   const sfx = new Sfx(settings.muted, settings.musicOn);
   // Trình duyệt chỉ cho phát tiếng sau lần chạm đầu tiên
@@ -39,33 +83,28 @@ async function start(): Promise<void> {
   document.addEventListener('pointerdown', unlockAudio, { capture: true });
   document.addEventListener('keydown', unlockAudio, { capture: true });
 
-  /**
-   * Chỉ lưu tiệm của MÌNH: chơi một mình, hoặc mình là chủ tiệm của phòng đang chơi.
-   * Vào tiệm của bạn thì không ghi đè tiến trình tiệm của mình.
-   */
-  let resetting = false;
-  const ownsShop = () =>
-    adapter.mode === 'solo' ||
-    ('getRoomInfo' in adapter && (adapter as { getRoomInfo: () => { ownerUid: string } }).getRoomInfo().ownerUid === adapter.localId);
-  const persist = () => {
-    if (resetting) return;
-    if (ownsShop()) void repo.save(createSave(adapter.getState(), settings));
-    else void repo.load().then((s) => s && repo.save({ ...s, settings: { ...settings }, updatedAt: Date.now() }));
-  };
   const watchSaves = () => {
     unsubSave?.();
     unsubSave = adapter.subscribe((_state, events) => {
-      if (events.some((e) => SAVE_EVENTS.has(e.type))) persist();
+      // Tip của mình (đã được chủ phòng xác nhận) cộng vào profile
+      const credit = store.credit(events);
+      if (credit.gained > 0) overlay.toast.show(fill(TIP_TEXT.gained, { money: formatMoney(credit.gained) }), 'info', 1600);
+      if (events.some((e) => SAVE_EVENTS.has(e.type)) || credit.changed) store.save();
     });
   };
   watchSaves();
   // Lưu khi ẩn tab / đóng trang
   document.addEventListener('visibilitychange', () => {
     const hidden = document.visibilityState === 'hidden';
-    if (hidden) persist();
+    if (hidden) {
+      store.save();
+      void store.pushNow();
+    }
     sfx.suspend(hidden);
   });
-  window.addEventListener('pagehide', persist);
+  window.addEventListener('pagehide', () => store.save());
+  // Có mạng lại: đăng nhập / đồng bộ
+  window.addEventListener('online', () => void store.startCloud());
 
   const measure = (): ShopLayout => chooseLayout(gameParent.clientWidth, gameParent.clientHeight);
   let layout = measure();
@@ -98,7 +137,7 @@ async function start(): Promise<void> {
   // Hướng dẫn xong / bỏ qua thì lưu lại để lần sau không hiện nữa
   game.registry.events.on('changedata-tutorialDone', (_parent: unknown, value: boolean) => {
     settings.tutorialDone = value;
-    persist();
+    store.save();
   });
 
   const overlayHooks = {
@@ -115,17 +154,29 @@ async function start(): Promise<void> {
         game.registry.set('reducedMotion', change.reducedMotion || prefersReduced);
         document.documentElement.classList.toggle('reduced-motion', change.reducedMotion || prefersReduced);
       }
-      persist();
+      store.save();
     },
     sfx,
     onReset: () => {
-      resetting = true;
-      void repo.clear().then(() => window.location.reload());
+      void store.resetShop(createShopState(newSeed(), 1, newRunId())).then(() => window.location.reload());
+    },
+    getProfile: () => store.profile,
+    getAccount: () => store.account,
+    isOwner: () => store.ownsShop(),
+    buyOutfit: (id: string) => {
+      const r = buyOutfit(store.profile, id, Date.now());
+      if (r.ok) store.setProfile(r.profile);
+      return r;
+    },
+    wearOutfit: (id: string) => {
+      const r = wearOutfit(store.profile, id, Date.now());
+      if (r.ok) store.setProfile(r.profile);
+      return r;
     },
   };
   overlay.bind(adapter, overlayHooks);
 
-  /** Đổi adapter (vào / rời phòng) và dựng lại cảnh. */
+  /** Đổi adapter (vào / rời phòng, tải tiệm từ cloud) và dựng lại cảnh. */
   const switchAdapter = (next: NetAdapter) => {
     const old = adapter;
     adapter = next;
@@ -134,34 +185,49 @@ async function start(): Promise<void> {
     watchSaves();
     if (old.mode === 'solo') old.destroy();
     if (game.scene.isActive('Shop')) game.scene.getScene('Shop').scene.restart();
-    if (import.meta.env.DEV) Object.assign(window, { jamie: { adapter: next, game } });
+    if (import.meta.env.DEV) Object.assign(window, { jamie: { adapter: next, game, store } });
   };
 
   const rooms = new RoomController(overlay, {
     getAdapter: () => adapter,
     switchAdapter,
     shopForRoom: () => {
-      // Mang tiệm vào phòng: bắt đầu lại từ lúc mở cửa (ngày đã đóng thì sang ngày mới)
+      // Mang tiệm vào phòng: bắt đầu lại từ lúc mở cửa (ngày đã đóng thì sang ngày mới), lượt chơi mới
       const s: ShopState = adapter.getState();
-      return startDay(s, s.phase === 'closed' ? s.day + 1 : s.day);
+      return { ...startDay(s, s.phase === 'closed' ? s.day + 1 : s.day), runId: newRunId() };
+    },
+    onRoomCreated: (shop, code) => store.attachRoom(shop, code),
+    beforeLeave: () => {
+      store.save();
+      return store.pushNow();
     },
     backToSolo: async (roomState) => {
       // Chủ tiệm: giữ tiến trình đã chơi trong phòng. Người khác: quay về tiệm của mình.
-      if (roomState) await repo.save(createSave(roomState, settings));
-      const mine = await repo.load();
-      switchAdapter(new LocalAdapter(mine ? restoreShop(mine) : createShopState(Math.floor(Math.random() * 2 ** 31), 1)));
+      const mine = store.myShop();
+      const state = roomState
+        ? { ...roomState, solo: true, runId: newRunId() }
+        : mine
+          ? restoreShop({ shop: mine }, newRunId())
+          : createShopState(newSeed(), 1, newRunId());
+      switchAdapter(newLocal(roomState ? startDay(state, state.phase === 'closed' ? state.day + 1 : state.day) : state));
+      store.save();
+      await store.sync();
     },
-    getName: () => settings.playerName,
-    setName: (name) => {
-      settings.playerName = name;
-      persist();
-    },
+    getName: () => store.profile.name,
+    setName: (name) => store.setProfile({ ...store.profile, name, updatedAt: Date.now() }),
+    getOutfit: () => store.profile.outfit,
+    connect: () => store.startCloud(),
   });
   overlay.onInvite = () => rooms.open();
 
+  const accounts = new AccountController(overlay, store, {
+    inRoom: () => adapter.mode === 'room',
+  });
+  overlay.onAccount = () => accounts.open();
+
   // Chỉ khi chạy `npm run dev`: mở console trình duyệt gõ `jamie.adapter.getState()` để xem state.
   // Bản build đưa lên mạng không có dòng này.
-  if (import.meta.env.DEV) Object.assign(window, { jamie: { adapter, game } });
+  if (import.meta.env.DEV) Object.assign(window, { jamie: { adapter, game, store } });
 
   // Mở bằng link mời (#join-MÃ) thì vào thẳng màn nhập tên; không thì chào mừng quay lại
   if (!rooms.openFromHash(window.location.hash) && saved) {
@@ -195,6 +261,9 @@ async function start(): Promise<void> {
 
   // Chặn cử chỉ zoom của Safari iOS
   document.addEventListener('gesturestart', (e) => e.preventDefault());
+
+  // Đăng nhập + đồng bộ cloud sau khi game đã hiện (không chặn lúc mở game, không mạng vẫn chơi được)
+  window.setTimeout(() => void store.startCloud(), 1500);
 }
 
 void start();

@@ -1,5 +1,6 @@
 // Danh mục mọi hình dùng trong cảnh: tên texture, kích thước (theo bố cục) và SVG tương ứng.
 // Entity hỏi danh mục này để biết dùng texture nào, cỡ bao nhiêu.
+import { DECOR_ART } from '../art/decor';
 import { shopBackgroundSvg } from '../art/background';
 import {
   CHAR_H,
@@ -30,7 +31,8 @@ import {
 import { cloudSvg } from '../art/scenery';
 import { crop } from '../art/svg';
 import { TRAY_H, lockSvg, toppingTraySvg } from '../art/toppingTray';
-import { APRON_COLORS, CHARACTERS, STAFF } from '../config/characters';
+import { CHARACTERS } from '../config/characters';
+import { OUTFITS, staffLook } from '../config/outfits';
 import { TEAS, getTea } from '../config/teas';
 import { TOPPINGS, getTopping } from '../config/toppings';
 import type { ShopState, Size } from '../core/types';
@@ -121,6 +123,12 @@ export const starArt = (L: ShopLayout, filled: boolean) => art(`star-${tag(L)}-$
 export const coinArt = (L: ShopLayout) => art(`coin-${tag(L)}`, { w: 52 * ts(L), h: 52 * ts(L) });
 export const steamArt = (L: ShopLayout) => art(`steam-${tag(L)}`, { w: 60 * ts(L), h: 90 * ts(L) });
 export const cloudArt = (L: ShopLayout) => art(`cloud-${tag(L)}`, { w: 130 * ts(L), h: 65 * ts(L) });
+/** Đồ trang trí mua thêm, vừa chỗ đặt trong bố cục. */
+export const decorArt = (L: ShopLayout, id: string) => {
+  const spot = L.decorSpots[id as keyof ShopLayout['decorSpots']];
+  const a = DECOR_ART[id];
+  return art(`decor-${tag(L)}-${id}`, fitSize(a.w, a.h, spot.w, spot.h));
+};
 
 /** Hệ số cỡ chữ / hình nhỏ: bố cục ngang nhỏ hơn. */
 export const ts = (L: ShopLayout) => (L.kind === 'portrait' ? 1 : 0.75);
@@ -197,17 +205,17 @@ export function textureRequests(L: ShopLayout, state: ShopState): TextureRequest
     reqs.push({ ...avatarArt(L, d.id), svg: characterAvatarSvg(d) });
   }
   for (const d of staffVariants()) reqs.push(...characterRequests(L, L.worker, d));
+  for (const id of Object.keys(DECOR_ART)) reqs.push({ ...decorArt(L, id), svg: DECOR_ART[id].svg() });
   return reqs;
 }
 
-/** Nhân viên với từng màu tạp dề (mỗi người chơi một màu). */
+/** Nhân viên mặc từng outfit (config/outfits). */
 export function staffVariants(): CharacterDef[] {
-  return APRON_COLORS.map((color, i) => ({ ...STAFF, id: `staff${i}`, accent: color }));
+  return OUTFITS.map((o) => staffFor(o.id));
 }
 
-export function staffFor(color: string): CharacterDef {
-  const all = staffVariants();
-  return all[Math.max(0, APRON_COLORS.indexOf(color))] ?? all[0];
+export function staffFor(outfit: string): CharacterDef {
+  return staffLook(outfit);
 }
 
 /** Màu trà / topping (giữ một chỗ để entity khỏi import config lung tung). */

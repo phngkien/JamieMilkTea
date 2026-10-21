@@ -1,6 +1,6 @@
 // Khung cửa sổ nổi (DOM) dùng chung cho màn Kho, Tổng kết ngày, Cài đặt. Mỗi lúc chỉ mở một màn.
 
-export type ModalName = 'stock' | 'summary' | 'settings' | 'room';
+export type ModalName = 'stock' | 'summary' | 'settings' | 'room' | 'shop' | 'wardrobe' | 'account';
 
 export class Modal {
   private root: HTMLElement;

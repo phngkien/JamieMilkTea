@@ -51,6 +51,12 @@ export function landscapeLayout(): ShopLayout {
       topping: { x: 1280, y: HUD + 55, w: W - 1280, h: H - HUD - 55 },
     },
     decor: { x: 330, y: 168, w: 260, h: 82 },
+    // Chậu cây giữa chồng cốc L và máy ép; bình hoa cạnh bảng gỗ; tranh trên tường dưới quầy trà
+    decorSpots: {
+      plant: { x: 978, y: 300, w: 96, h: 120 },
+      painting: { x: 540, y: 928, w: 130, h: 100 },
+      flowers: { x: 725, y: 660, w: 60, h: 86 },
+    },
     counterStrip: { x: 0, y: 545, w: 720, h: 22 },
     worker: { x: 600, y: 165, w: 110, h: 86 },
     workerSpots: {

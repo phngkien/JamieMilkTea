@@ -16,12 +16,15 @@ export class Hud {
 
   private invite: HTMLButtonElement;
 
+  private shop: HTMLButtonElement;
+
   constructor(
     root: HTMLElement,
     onSettings: () => void,
     onStock: () => void,
     onSound: () => void,
     onInvite: () => void,
+    onShop: () => void,
   ) {
     root.innerHTML = `
       <div class="hud-left">
@@ -34,7 +37,7 @@ export class Hud {
         </div>
       </div>
       <div class="hud-center">
-        <div class="hud-shop"></div>
+        <button type="button" class="hud-shop" aria-label="Tiệm của tôi"></button>
         <div class="hud-money"></div>
       </div>
       <div class="hud-right">
@@ -49,7 +52,10 @@ export class Hud {
     this.money = root.querySelector('.hud-money')!;
     this.stars = root.querySelector('.hud-stars')!;
     this.rating = root.querySelector('.hud-rating')!;
-    root.querySelector('.hud-shop')!.textContent = SHOP_NAME;
+    this.shop = root.querySelector<HTMLButtonElement>('.hud-shop')!;
+    this.shop.textContent = SHOP_NAME;
+    // Cả khối giữa (tên tiệm + tiền két) là nút mở "Tiệm của tôi" — vùng chạm đủ lớn trên điện thoại
+    root.querySelector('.hud-center')!.addEventListener('click', onShop);
     const stock = root.querySelector<HTMLButtonElement>('.hud-stock')!;
     stock.textContent = STOCK_TEXT.title;
     stock.addEventListener('click', onStock);
@@ -63,9 +69,10 @@ export class Hud {
 
   update(state: ShopState): void {
     const clock = clockText(state.time);
-    const key = `${state.day}|${clock}|${state.cash}|${state.ratingSum}|${state.ratingCount}|${state.phase}`;
+    const key = `${state.day}|${clock}|${state.cash}|${state.ratingSum}|${state.ratingCount}|${state.phase}|${state.shopName}`;
     if (key === this.lastKey) return;
     this.lastKey = key;
+    this.shop.textContent = `${state.shopName} ›`;
     this.day.textContent = fill(UI_TEXT.day, { n: state.day });
     this.clock.textContent = `🕒 ${clock}`;
     this.clock.classList.toggle('closing', state.phase !== 'open');

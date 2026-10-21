@@ -51,5 +51,3 @@ export const STAFF: CharacterDef = {
   outfit: 'apron', outfitColor: '#FFF7EF', accent: '#F28CA8', eyes: '#4A3328',
 };
 
-/** Màu tạp dề có thể chọn (outfit đầy đủ làm ở prompt sau). */
-export const APRON_COLORS = ['#F28CA8', '#A7D08C', '#6FA8DC', '#F5C65B'];

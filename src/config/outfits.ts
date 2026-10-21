@@ -1,6 +1,7 @@
 // Outfit của nhân viên (người chơi), mua bằng tiền tip cá nhân (CLAUDE.md mục 9.4, 10).
 // Mỗi outfit đổi màu tạp dề và có thể thêm mũ, kính, kiểu tóc. Thiết kế riêng của Jamie's Milk Tea.
 import type { CharacterDef } from '../art/characters';
+import { STAFF } from './characters';
 
 export interface OutfitDef {
   id: string;
@@ -26,6 +27,12 @@ export const OUTFITS: OutfitDef[] = [
 
 export function getOutfit(id: string): OutfitDef {
   return OUTFITS.find((o) => o.id === id) ?? OUTFITS[0];
+}
+
+/** Nhân viên mặc outfit này (để vẽ). */
+export function staffLook(outfit: string): CharacterDef {
+  const o = getOutfit(outfit);
+  return { ...STAFF, ...o.look, id: `staff-${o.id}` };
 }
 
 /** Màu đại diện của outfit (chấm màu trong phòng chờ, viền tên). */

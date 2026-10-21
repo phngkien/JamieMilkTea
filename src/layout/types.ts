@@ -57,6 +57,8 @@ export interface ShopLayout {
   zones: { customer: Rect; tea: Rect; brew: Rect; topping: Rect };
   /** Góc trang trí (kệ cây, cửa sổ nhỏ) ở vùng khách. */
   decor: Rect;
+  /** Chỗ đặt đồ trang trí mua thêm (config/upgrades, loại decor). */
+  decorSpots: Record<'plant' | 'painting' | 'flowers', Rect>;
   /** Quầy gỗ ngăn giữa khách và tiệm. */
   counterStrip: Rect;
   /** Nhân viên (người chơi) đứng ở đây khi chơi một mình. */

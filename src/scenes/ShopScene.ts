@@ -3,7 +3,6 @@
 // mọi thứ đi qua NetAdapter (ai giữ trạm nào, ai đang rót, biểu cảm...).
 import Phaser from 'phaser';
 import type { Sfx } from '../audio/Sfx';
-import { STAFF } from '../config/characters';
 import { OVERFLOW_AT, SIZES } from '../config/cup';
 import {
   LOW_STOCK_AT,
@@ -52,7 +51,7 @@ import type { EmoteKind, NetAdapter } from '../net/NetAdapter';
 import type { Overlay } from '../ui/overlay';
 import type { Section } from '../ui/quickNav';
 import { currentTutorialStep, type TutorialTarget } from '../ui/tutorial';
-import { backgroundChunks, coinArt, starArt, textureRequests, ts as textScaleOf } from './artCatalog';
+import { backgroundChunks, coinArt, decorArt, starArt, textureRequests, ts as textScaleOf } from './artCatalog';
 import { ScrollController } from './ScrollController';
 import { ensureTextures } from './textures';
 
@@ -128,6 +127,7 @@ export class ShopScene extends Phaser.Scene {
   /** Các vật thuộc trạm nào (để làm mờ trạm của người khác). */
   private stationProps: { prop: Prop; station: Station }[] = [];
   private lastPhase: ShopState['phase'] | null = null;
+  private decorViews = new Map<string, Phaser.GameObjects.Image>();
   private unsubs: (() => void)[] = [];
 
   constructor() {
@@ -217,6 +217,7 @@ export class ShopScene extends Phaser.Scene {
     this.stationProps = [];
     this.lastPhase = null;
     this.unsubs = [];
+    this.decorViews = new Map();
   }
 
   // ───────────────────────── Vẽ cảnh tĩnh ─────────────────────────
@@ -779,6 +780,7 @@ export class ShopScene extends Phaser.Scene {
   }
 
   private syncView(state: ShopState, animate: boolean, time = 0): void {
+    this.syncDecor(state, animate);
     this.syncOwnership();
     this.syncWorkers(time);
     this.syncCustomer(state, animate, time);
@@ -788,6 +790,26 @@ export class ShopScene extends Phaser.Scene {
     this.serveButton.setEnabled(
       !!serveCup && serveCup.sealed && !serveCup.ruined && !!front && this.ownsStation('cashier'),
     );
+  }
+
+  /** Đồ trang trí đã mua: hiện lên cảnh (vừa mua thì "bật" ra). */
+  private syncDecor(state: ShopState, animate: boolean): void {
+    for (const id of state.decor) {
+      if (this.decorViews.has(id)) continue;
+      const spot = this.layout.decorSpots[id as keyof ShopLayout['decorSpots']];
+      if (!spot) continue;
+      const a = decorArt(this.layout, id);
+      // Đặt chạm đáy, giữa chỗ đặt
+      const img = this.add
+        .image(spot.x + spot.w / 2, spot.y + spot.h, a.key)
+        .setOrigin(0.5, 1)
+        .setDepth(DEPTH.props);
+      this.decorViews.set(id, img);
+      if (animate && !this.reducedMotion) {
+        img.setScale(0.2);
+        this.tweens.add({ targets: img, scale: 1, duration: 420, ease: 'Back.Out' });
+      }
+    }
   }
 
   /** Trạm của người khác mờ đi; vừa đổi trạm thì cuộn tới trạm của mình. */
@@ -817,14 +839,14 @@ export class ShopScene extends Phaser.Scene {
             return station ? { ...p, spot: L.workerSpots[station] } : null;
           })
           .filter((p): p is NonNullable<typeof p> => p !== null)
-      : [{ uid: this.adapter.localId, name: UI_TEXT.staffName, color: STAFF.accent, online: true, spot: L.worker }];
-    const key = JSON.stringify(wanted.map((p) => [p.uid, p.name, p.color, p.spot.x, p.spot.y]));
+      : players.slice(0, 1).map((p) => ({ ...p, name: UI_TEXT.staffName, spot: L.worker }));
+    const key = JSON.stringify(wanted.map((p) => [p.uid, p.name, p.outfit, p.spot.x, p.spot.y]));
     if (key !== this.lastWorkersKey) {
       this.lastWorkersKey = key;
       for (const w of this.workers.values()) w.destroy();
       this.workers.clear();
       for (const p of wanted) {
-        const w = new Worker(this, L, p.spot, p.uid, p.name, p.color, this.ts);
+        const w = new Worker(this, L, p.spot, p.uid, p.name, p.outfit, this.ts);
         w.setDepth(DEPTH.customer);
         this.workers.set(p.uid, w);
       }

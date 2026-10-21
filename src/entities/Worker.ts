@@ -1,4 +1,4 @@
-// Nhân viên (người chơi): tạp dề theo màu outfit, tên hiện trên đầu, nhún nhẹ khi đứng chờ.
+// Nhân viên (người chơi): mặc outfit của người chơi, tên hiện trên đầu, nhún nhẹ khi đứng chờ.
 import Phaser from 'phaser';
 import { PALETTE } from '../config/palette';
 import type { Rect, ShopLayout } from '../layout';
@@ -9,8 +9,8 @@ import { label } from './draw';
 export class Worker extends Character {
   readonly uid: string;
 
-  constructor(scene: Phaser.Scene, L: ShopLayout, spot: Rect, uid: string, name: string, color: string, textScale: number) {
-    super(scene, L, spot, staffFor(color));
+  constructor(scene: Phaser.Scene, L: ShopLayout, spot: Rect, uid: string, name: string, outfit: string, textScale: number) {
+    super(scene, L, spot, staffFor(outfit));
     this.uid = uid;
     // Tên nhân viên đặt bên trái đầu (phía trên là mái hiên)
     const h = this.characterHeight;

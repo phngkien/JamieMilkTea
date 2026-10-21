@@ -109,6 +109,8 @@ export function canPerform(
   spend: SpendRule | null = null,
 ): RejectReason | null {
   if (isSpending(action) && spend) return canSpend(owners, uid, spend) ? null : 'notOwner';
+  // Đổi tên tiệm: chỉ chủ tiệm
+  if (action.type === 'RENAME_SHOP') return !spend || uid === spend.ownerUid ? null : 'notOwner';
   const station = actionStation(action);
   if (station === null) return isHost ? null : 'notYourStation';
   const mine = (s: Station) => owners[s] === uid;

@@ -882,3 +882,191 @@ body {
   font-weight: 800;
   background: var(--gold);
 }
+
+/* ───── Tiệm của tôi, Tủ đồ, Tài khoản ───── */
+#hud .hud-center {
+  pointer-events: auto;
+  cursor: pointer;
+  min-height: calc(var(--u) * 110);
+  touch-action: manipulation;
+}
+
+button.hud-shop {
+  display: block;
+  max-width: 100%;
+  margin: 0 auto calc(var(--u) * 4);
+  padding: 0 calc(var(--u) * 10);
+  border: none;
+  background: none;
+  font: inherit;
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: calc(var(--u) * 32);
+  color: var(--pink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.warn-box,
+.ok-box {
+  margin: 0 0 calc(var(--u) * 12);
+  padding: calc(var(--u) * 16) calc(var(--u) * 22);
+  border-radius: calc(var(--u) * 24);
+  font-size: calc(var(--u) * 31);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.warn-box {
+  background: #fdeeee;
+  border: calc(var(--u) * 3) solid var(--danger);
+}
+
+.ok-box {
+  background: #eef7e8;
+  border: calc(var(--u) * 3) solid #a7d08c;
+}
+
+.field-row {
+  display: flex;
+  gap: calc(var(--u) * 14);
+}
+
+.field-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.shop-name-big {
+  margin: 0 0 calc(var(--u) * 6);
+  text-align: center;
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: calc(var(--u) * 56);
+  color: var(--pink);
+}
+
+.upgrade-row .stock-name {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 10);
+}
+
+.upgrade-icon {
+  font-size: calc(var(--u) * 44);
+}
+
+.stock-count.upgrade-desc {
+  font-weight: 600;
+  font-size: calc(var(--u) * 28);
+  opacity: 0.85;
+}
+
+.stock-row.owned {
+  background: #eef7e8;
+  border-color: #a7d08c;
+}
+
+.stock-wait.owned {
+  color: #3f9b54;
+  opacity: 1;
+}
+
+.shop-links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: calc(var(--u) * 16);
+  margin-top: calc(var(--u) * 20);
+}
+
+.shop-links button:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+.outfit-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: calc(var(--u) * 16);
+}
+
+.outfit-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--u) * 10);
+  padding: calc(var(--u) * 18) calc(var(--u) * 14);
+  background: #fff;
+  border: calc(var(--u) * 3) solid var(--beige);
+  border-radius: calc(var(--u) * 26);
+  text-align: center;
+  font-size: calc(var(--u) * 32);
+}
+
+.outfit-card.wearing {
+  border-color: var(--pink);
+  background: #fff5f8;
+}
+
+.outfit-card em {
+  font-style: normal;
+  font-weight: 800;
+  color: var(--pink);
+  min-height: calc(var(--u) * 110);
+  display: flex;
+  align-items: center;
+}
+
+.outfit-swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--u) * 120);
+  height: calc(var(--u) * 120);
+  border-radius: 50%;
+  border: calc(var(--u) * 4) solid var(--outline);
+  font-size: calc(var(--u) * 40);
+}
+
+.login-code-box {
+  padding: calc(var(--u) * 16);
+  background: #fff;
+  border: calc(var(--u) * 3) dashed var(--outline);
+  border-radius: calc(var(--u) * 26);
+  text-align: center;
+  font-weight: 800;
+  font-size: calc(var(--u) * 32);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.login-code-box .room-code {
+  font-size: calc(var(--u) * 84);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+#login-code {
+  text-transform: uppercase;
+  letter-spacing: calc(var(--u) * 6);
+}
+
+.sum-line.tips b {
+  color: #c98a12;
+}
+
+.outfit-swatch {
+  overflow: hidden;
+}
+
+.outfit-swatch img {
+  width: 86%;
+  height: 86%;
+  object-fit: contain;
+  margin-top: 14%;
+}

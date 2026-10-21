@@ -93,7 +93,19 @@ Vuốt nền để cuộn; thanh dưới cùng có nút nhảy nhanh **Quầy tr
 
 **Âm thanh và hình động:** game có tiếng rót (cao dần khi ly đầy), xúc đá, ép nắp, chuông khách vào, tiền, nhạc nền nhẹ. Âm thanh chỉ bắt đầu sau lần chạm đầu tiên (luật của trình duyệt; trên iPhone nhớ tắt chế độ im lặng). Nút 🔊 trên cùng bên phải để tắt/bật tiếng; trong **⚙ Cài đặt** có tắt riêng **Nhạc nền** và bật **Giảm chuyển động** (bớt hình động). Âm lượng, nhịp và giai điệu nhạc nền chỉnh trong `src/config/audio.ts`.
 
-**Lưu game:** game tự lưu trên máy (khi giao ly, nhập hàng, cuối ngày, khi đóng tab). Mở lại sẽ chơi tiếp ở lúc mở cửa (08:00) của ngày đang chơi. Muốn chơi lại từ đầu: nút **⚙** → **Chơi lại từ đầu** (hỏi lại 2 lần).
+**Lưu game:** game tự lưu trên máy (khi giao ly, nhập hàng, cuối ngày, khi đóng tab), và khi có mạng thì lưu lên cloud (Firebase) sau vài giây. Mở lại sẽ chơi tiếp ở lúc mở cửa (08:00) của ngày đang chơi. Muốn chơi lại từ đầu: nút **⚙** → **Chơi lại từ đầu** (hỏi lại 2 lần; tiền tip và outfit vẫn giữ).
+
+**Tiệm của tôi, tip, outfit:**
+
+- Bấm **tên tiệm** ở giữa thanh trên cùng để mở **Tiệm của tôi**: đổi tên tiệm, xem ngày / két / đánh giá, mua **nâng cấp** (ghế chờ, hũ tip, mối nhập hàng, bảng hiệu đèn) và **trang trí** (chậu cây, tranh, bình hoa) bằng tiền két.
+- Ly ngon (từ 60 điểm) thì khách cho **tip**. Tip là tiền **riêng** của người làm ly, không vào két. Chơi chung thì tip chia cho những người đã làm ly đó theo điểm từng trạm.
+- **Tủ đồ** (trong Tiệm của tôi): dùng tip mua outfit cho nhân viên của mình.
+- Chơi chung: chỉ **chủ tiệm** được chi tiền két. Chủ phòng có thể bật **"Cho trạm Kho chi tiền két"** trong phòng chờ. Chủ tiệm rời phòng thì phòng đóng, mọi người quay về tiệm của mình.
+
+**Tài khoản:** mặc định là tài khoản khách (chỉ nằm trên trình duyệt đó). Vào **Tiệm của tôi → Tài khoản** để giữ tài khoản:
+
+- **Giữ bằng Google**: bấm nút, chọn Google. Trên máy khác cũng bấm nút đó, chọn đúng Google → game hỏi chuyển sang tài khoản đó → đồng ý.
+- **Mã tài khoản** (8 ký tự, ví dụ `ABCD-2345`): bấm **Tạo mã tài khoản**, chép mã ra giấy. Trên máy khác: ô **Đăng nhập bằng mã** → gõ mã. Cách này chạy được cả khi mở game từ màn hình chính iPhone.
 
 ## 5. Chỉnh số liệu cân bằng
 
@@ -106,6 +118,9 @@ Vuốt nền để cuộn; thanh dưới cùng có nút nhảy nhanh **Quầy tr
 | Cách chấm điểm | `src/config/scoring.ts` |
 | Âm lượng, nhạc nền | `src/config/audio.ts` |
 | Khách (tên, tóc, trang phục) | `src/config/characters.ts` |
+| Nâng cấp, trang trí tiệm (giá, tác dụng) | `src/config/upgrades.ts` |
+| Outfit (giá bằng tip) | `src/config/outfits.ts` |
+| Tỉ lệ tip, điểm từng trạm | `src/config/scoring.ts` (`TIP`, `STATION_SCORING`) |
 
 Mẹo khi chạy `npm run dev`: mở Console của trình duyệt (F12) và gõ `jamie.adapter.getState()` để xem toàn bộ số liệu đang chạy.
 
@@ -118,7 +133,23 @@ Mẹo khi chạy `npm run dev`: mở Console của trình duyệt (F12) và gõ 
 - `src/audio/` — âm thanh và nhạc nền tổng hợp bằng Web Audio.
 - `src/layout/` — vị trí mọi vật cho màn hình dọc và ngang.
 - `src/ui/` — HUD, thanh nút, thẻ hướng dẫn (HTML/CSS).
-- `src/net/` — `LocalAdapter` cho chơi một mình (sau này thêm chơi nhiều người).
-- `src/save/` — lưu game trên máy (IndexedDB + localStorage).
+- `src/net/` — `LocalAdapter` cho chơi một mình, `FirebaseAdapter` cho chơi chung, `cloud.ts` lưu tiệm / profile trên Firebase và tài khoản.
+- `src/save/` — lưu game trên máy (IndexedDB + localStorage), đồng bộ với cloud (`sync.ts`: luật xử lý xung đột, có test).
+- `firebase/` — luật bảo mật của Firebase và giải thích (`RULES.md`).
+
+## 7. Cài đặt Firebase (tài khoản và lưu cloud)
+
+Làm **một lần** trên [Firebase Console](https://console.firebase.google.com), dự án **jamie-milk-tea**:
+
+1. Menu trái **Build → Authentication** → tab **Sign-in method**.
+2. Bấm **Anonymous** → kiểm tra đang **Enabled** (đã bật từ trước).
+3. Bấm **Add new provider** → **Google** → gạt **Enable** → chọn email hỗ trợ (email của bạn) → **Save**.
+4. Bấm **Add new provider** → **Email/Password** → gạt **Enable** dòng đầu tiên (Email/Password), **không** bật "Email link" → **Save**. (Cái này dùng cho **Mã tài khoản**.)
+5. Vẫn trong Authentication → tab **Settings** → **Authorized domains** → kiểm tra có `phngkien.github.io` (chưa có thì bấm **Add domain**, gõ `phngkien.github.io`, **Add**). `localhost` có sẵn.
+6. Menu trái **Build → Realtime Database** → tab **Rules** → xóa hết nội dung cũ, dán **toàn bộ** nội dung file `firebase/database.rules.json` → bấm **Publish**.
+
+Kết quả mong đợi: trong game, **Tiệm của tôi → Tài khoản** hiện "Tài khoản khách" kèm hai nút; bấm **Tạo mã tài khoản** sẽ hiện mã 8 ký tự.
+
+Nếu game báo "Tính năng này chưa được bật trong Firebase" thì bước 3 hoặc 4 chưa xong.
 
 Thư mục `_tham-khao/` chỉ để tham khảo, **không bao giờ** được đưa lên GitHub (đã có trong `.gitignore`).

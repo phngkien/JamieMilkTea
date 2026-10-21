@@ -54,6 +54,12 @@ export function portraitLayout(viewHeight: number): ShopLayout {
       topping: { x: 0, y: 2030, w: W, h: 780 },
     },
     decor: { x: 420, y: 262, w: 420, h: 98 },
+    // Khoảng trống dưới chồng cốc và dưới máy ép nắp
+    decorSpots: {
+      painting: { x: 40, y: 1560, w: 150, h: 120 },
+      flowers: { x: 205, y: 1610, w: 75, h: 108 },
+      plant: { x: 905, y: 1570, w: 120, h: 150 },
+    },
     counterStrip: { x: 0, y: 700, w: W, h: 30 },
     worker: { x: 900, y: 252, w: 150, h: 112 },
     workerSpots: {

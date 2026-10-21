@@ -1,5 +1,5 @@
 // Chơi đơn: áp dụng action ngay trên máy này. Một người giữ cả 4 trạm.
-import { STAFF } from '../config/characters';
+import { DEFAULT_OUTFIT, outfitColor } from '../config/outfits';
 import { UI_TEXT } from '../config/strings';
 import { planHostActions } from '../core/day';
 import { reduce } from '../core/reducer';
@@ -19,6 +19,7 @@ export class LocalAdapter implements NetAdapter {
   private listeners = new Set<StateListener>();
   private emoteListeners = new Set<(uid: string, kind: EmoteKind) => void>();
   private owners = soloOwners(SOLO_ID);
+  private outfit = DEFAULT_OUTFIT;
 
   constructor(initial: ShopState) {
     this.state = { ...initial, solo: true };
@@ -26,6 +27,16 @@ export class LocalAdapter implements NetAdapter {
 
   getState(): ShopState {
     return this.state;
+  }
+
+  getConfirmedState(): ShopState {
+    return this.state;
+  }
+
+  /** Đổi outfit nhân viên (sau khi mua / mặc trong Tủ đồ). */
+  setOutfit(outfit: string): void {
+    this.outfit = outfit;
+    this.apply([]);
   }
 
   dispatch(action: Action): void {
@@ -52,7 +63,17 @@ export class LocalAdapter implements NetAdapter {
   }
 
   getPlayers(): PlayerInfo[] {
-    return [{ uid: SOLO_ID, name: UI_TEXT.staffName, station: null, online: true, joinedAt: 0, color: STAFF.accent }];
+    return [
+      {
+        uid: SOLO_ID,
+        name: UI_TEXT.staffName,
+        station: null,
+        online: true,
+        joinedAt: 0,
+        outfit: this.outfit,
+        color: outfitColor(this.outfit),
+      },
+    ];
   }
 
   setLivePour(): void {

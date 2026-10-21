@@ -14,7 +14,9 @@ export interface PlayerInfo {
   station: Station | null;
   online: boolean;
   joinedAt: number;
-  /** Màu tạp dề. */
+  /** Outfit đang mặc (id trong config/outfits). */
+  outfit: string;
+  /** Màu đại diện của outfit (chấm màu, viền tên). */
   color: string;
 }
 
@@ -28,7 +30,8 @@ export interface LivePour {
 
 export interface RoomInfo {
   code: string;
-  status: 'lobby' | 'playing';
+  /** closed: chủ tiệm đã đóng phòng, mọi người quay về tiệm của mình. */
+  status: 'lobby' | 'playing' | 'closed';
   hostUid: string;
   ownerUid: string;
   players: PlayerInfo[];
@@ -45,6 +48,11 @@ export interface NetAdapter {
   /** Máy này có phải chủ phòng (trọng tài) không. Chơi đơn luôn là true. */
   readonly isHost: boolean;
   getState(): ShopState;
+  /**
+   * State đã được chủ phòng xác nhận (không gồm thao tác của mình đang chờ). Dùng để cộng tip
+   * vào profile cho chắc chắn. Chơi đơn / host: giống getState().
+   */
+  getConfirmedState(): ShopState;
   /** Gửi một thao tác của người chơi. */
   dispatch(action: Action): void;
   /** Nghe khi state đổi. Trả về hàm để hủy nghe. */

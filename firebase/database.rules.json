@@ -18,10 +18,13 @@
             ".validate": "newData.isNumber()"
           },
           "status": {
-            ".validate": "newData.val() === 'lobby' || newData.val() === 'playing'"
+            ".validate": "newData.val() === 'lobby' || newData.val() === 'playing' || newData.val() === 'closed'"
           },
           "version": {
             ".validate": "newData.isNumber()"
+          },
+          "allowSpending": {
+            ".validate": "newData.isBoolean()"
           },
           "$other": {
             ".validate": false
@@ -53,8 +56,8 @@
             "lastSeen": {
               ".validate": "newData.isNumber()"
             },
-            "color": {
-              ".validate": "newData.isString() && newData.val().length <= 9"
+            "outfit": {
+              ".validate": "newData.isString() && newData.val().length <= 24"
             },
             "$other": {
               ".validate": false
@@ -93,8 +96,102 @@
     },
     "profiles": {
       "$uid": {
-        ".read": "auth != null",
-        ".write": "auth != null && auth.uid === $uid"
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid && newData.exists()",
+        ".validate": "newData.hasChildren(['tipCoins', 'updatedAt'])",
+        "uid": {
+          ".validate": "newData.val() === $uid"
+        },
+        "name": {
+          ".validate": "newData.isString() && newData.val().length <= 16"
+        },
+        "outfit": {
+          ".validate": "newData.isString() && newData.val().length <= 24"
+        },
+        "ownedOutfits": {
+          ".validate": "newData.hasChildren()"
+        },
+        "tipCoins": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000000 && (!data.exists() || newData.val() - data.val() <= 2000000)"
+        },
+        "stats": {
+          ".validate": "newData.hasChildren()"
+        },
+        "excellent": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000"
+        },
+        "updatedAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "loginCode": {
+          ".validate": "newData.isString() && newData.val().length <= 12"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "shops": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || (data.child('room').isString() && root.child('rooms').child(data.child('room').val()).child('meta/hostUid').val() === auth.uid))",
+        ".write": "auth != null && newData.exists() && (auth.uid === $uid || (newData.child('room').isString() && root.child('rooms').child(newData.child('room').val()).child('meta/ownerUid').val() === $uid && root.child('rooms').child(newData.child('room').val()).child('meta/hostUid').val() === auth.uid))",
+        ".validate": "newData.hasChildren(['ownerUid', 'day', 'cash', 'stock', 'updatedAt'])",
+        "ownerUid": {
+          ".validate": "newData.val() === $uid"
+        },
+        "day": {
+          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 100000 && (!data.exists() || newData.val() === 1 || (newData.val() >= data.val() && newData.val() <= data.val() + 7))"
+        },
+        "cash": {
+          ".validate": "newData.isNumber() && newData.val() >= -10000000 && newData.val() <= 1000000000 && (data.exists() ? ((newData.val() - data.val() <= 5000000 && data.val() - newData.val() <= 5000000) || (newData.parent().child('day').val() === 1 && newData.val() <= 500000)) : newData.val() <= 50000000)"
+        },
+        "stock": {
+          ".validate": "newData.hasChildren()",
+          "$item": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000 && (!data.exists() || newData.val() - data.val() <= 5000 || newData.parent().parent().child('day').val() === 1)"
+          }
+        },
+        "dayFinished": {
+          ".validate": "newData.isBoolean()"
+        },
+        "seed": {
+          ".validate": "newData.isNumber()"
+        },
+        "ratingSum": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000"
+        },
+        "ratingCount": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000"
+        },
+        "shopName": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 24"
+        },
+        "unlockedTeas": {
+          ".validate": "newData.hasChildren()"
+        },
+        "unlockedToppings": {
+          ".validate": "newData.hasChildren()"
+        },
+        "upgrades": {
+          ".validate": "newData.hasChildren()"
+        },
+        "decor": {
+          ".validate": "newData.hasChildren()"
+        },
+        "history": {
+          "$day": {
+            ".validate": "newData.hasChildren(['day'])"
+          }
+        },
+        "updatedAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "room": {
+          ".validate": "newData.isString() && newData.val().length <= 8"
+        },
+        "$other": {
+          ".validate": false
+        }
       }
     }
   }

@@ -1,5 +1,5 @@
 // Các màn HTML của phòng chơi chung: menu, tạo phòng, vào phòng, phòng chờ (chọn trạm).
-import { ROOM_TEXT, STATION_JOBS, STATION_NAMES, fill } from '../config/strings';
+import { ROOM_TEXT, SETTINGS_TEXT, STATION_JOBS, STATION_NAMES, fill } from '../config/strings';
 import { ALL_STATIONS, stationsOf, type StationOwners } from '../core/stations';
 import type { Station } from '../core/types';
 import type { PlayerInfo, RoomInfo } from '../net/NetAdapter';
@@ -94,6 +94,14 @@ export function renderLobby(info: RoomInfo, me: string, owners: StationOwners, l
       <h3>${esc(ROOM_TEXT.chooseStation)}</h3>
       ${merged ? `<p class="hint">${esc(merged)}</p>` : ''}
       <div class="station-grid">${ALL_STATIONS.map((s) => stationCard(s, info, me)).join('')}</div>
+      ${
+        isHost
+          ? `<button type="button" class="toggle ${info.allowSpending ? 'on' : ''}" data-action="allow-spending">
+              <span>${esc(ROOM_TEXT.allowSpending)}</span><b>${esc(info.allowSpending ? SETTINGS_TEXT.on : SETTINGS_TEXT.off)}</b></button>
+             <p class="hint">${esc(ROOM_TEXT.allowSpendingHint)}</p>`
+          : ''
+      }
+      ${info.ownerUid === me ? `<p class="hint">${esc(ROOM_TEXT.ownerLeaveHint)}</p>` : ''}
     </div>
     <footer class="modal-foot two">
       <button type="button" class="danger-outline" data-action="leave">${esc(ROOM_TEXT.leave)}</button>
@@ -103,5 +111,5 @@ export function renderLobby(info: RoomInfo, me: string, owners: StationOwners, l
 
 /** Khóa để biết phòng chờ có cần vẽ lại không. */
 export function lobbyKey(info: RoomInfo, owners: StationOwners): string {
-  return JSON.stringify([info.status, info.hostUid, info.players, owners]);
+  return JSON.stringify([info.status, info.hostUid, info.players, owners, info.allowSpending]);
 }

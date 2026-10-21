@@ -1,5 +1,5 @@
 // Bảng "Hết ngày N": khách, sao, doanh thu, chi phí, lãi, két.
-import { SUMMARY_TEXT, fill } from '../config/strings';
+import { SUMMARY_TEXT, TIP_TEXT, fill } from '../config/strings';
 import { formatMoney, formatRating } from '../core/economy';
 import type { DaySummary } from '../core/types';
 import { esc } from './modal';
@@ -11,8 +11,11 @@ function line(label: string, value: string, cls = ''): string {
   return `<div class="sum-line ${cls}"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
 }
 
-/** `waitText`: chơi chung mà mình không phải chủ phòng → hiện chữ chờ thay cho nút sang ngày mới. */
-export function renderSummary(s: DaySummary, waitText: string | null = null): string {
+/**
+ * `waitText`: chơi chung mà mình không phải chủ phòng → hiện chữ chờ thay cho nút sang ngày mới.
+ * `myTips`: tip cá nhân của mình trong ngày (không vào két).
+ */
+export function renderSummary(s: DaySummary, waitText: string | null = null, myTips = 0): string {
   const costs = s.ingredients + s.waste + s.rent;
   const stars = s.ratingCount ? formatRating(s.ratingSum, s.ratingCount) : '—';
   return `
@@ -43,6 +46,10 @@ export function renderSummary(s: DaySummary, waitText: string | null = null): st
         ${s.upgrade ? line(SUMMARY_TEXT.cashUpgrade, minus(s.upgrade), 'sub') : ''}
         ${line(SUMMARY_TEXT.cashRent, minus(s.rent), 'sub')}
         ${line(SUMMARY_TEXT.cashEnd, formatMoney(s.cashEnd), 'big cash')}
+      </section>
+      <section class="sum-block">
+        ${line(SUMMARY_TEXT.myTips, plus(myTips), 'big tips')}
+        <p class="hint">${esc(TIP_TEXT.yours)} 💰 → 👗</p>
       </section>
     </div>
     <footer class="modal-foot">

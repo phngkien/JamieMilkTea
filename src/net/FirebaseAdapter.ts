@@ -22,6 +22,7 @@ import {
   type DatabaseReference,
   type Unsubscribe,
 } from 'firebase/database';
+import { DEFAULT_OUTFIT, outfitColor } from '../config/outfits';
 import { ROOM } from '../config/room';
 import { planHostActions } from '../core/day';
 import { reduce } from '../core/reducer';
@@ -115,6 +116,19 @@ export class FirebaseAdapter implements NetAdapter {
 
   getState(): ShopState {
     return this.state;
+  }
+
+  getConfirmedState(): ShopState {
+    return this.isHost ? this.state : (this.lastDecoded ?? this.state);
+  }
+
+  get ownerId(): string {
+    return this.ownerUid;
+  }
+
+  /** Đổi outfit giữa chừng: mọi người thấy ngay. */
+  async setOutfit(outfit: string): Promise<void> {
+    await update(this.ref(`players/${this.localId}`), { outfit }).catch(() => undefined);
   }
 
   getOwners(): StationOwners {
@@ -239,11 +253,17 @@ export class FirebaseAdapter implements NetAdapter {
     await update(this.ref('meta'), { status: 'playing' });
   }
 
-  /** Rời phòng. Host rời thì giao host cho người vào sớm nhất còn lại; người cuối cùng thì xóa phòng. */
+  /**
+   * Rời phòng. Host rời thì giao host cho người vào sớm nhất còn lại; người cuối cùng thì xóa phòng.
+   * Chủ tiệm rời thì đóng phòng: mọi người quay về tiệm của mình (tiệm là của chủ tiệm).
+   */
   async leave(): Promise<void> {
     const others = this.players.filter((p) => p.uid !== this.localId).sort((a, b) => a.joinedAt - b.joinedAt);
     if (this.isHost) this.flushState(Date.now(), true);
     try {
+      if (this.localId === this.ownerUid && others.length > 0 && this.status !== 'closed') {
+        await update(this.ref('meta'), { status: 'closed' });
+      }
       if (others.length === 0) {
         await remove(ref(this.session.db, `rooms/${this.code}`));
         await remove(ref(this.session.db, `userRooms/${this.ownerUid}/${this.code}`)).catch(() => undefined);
@@ -307,7 +327,7 @@ export class FirebaseAdapter implements NetAdapter {
         const wasHost = this.isHost;
         this.hostUid = meta.hostUid ?? this.hostUid;
         this.ownerUid = meta.ownerUid ?? this.ownerUid;
-        this.status = meta.status === 'playing' ? 'playing' : 'lobby';
+        this.status = meta.status === 'playing' || meta.status === 'closed' ? meta.status : 'lobby';
         this.allowSpending = meta.allowSpending === true;
         this.owners = stationOwners(this.players, this.hostUid);
         if (!wasHost && this.isHost) this.becomeHost();
@@ -325,7 +345,8 @@ export class FirebaseAdapter implements NetAdapter {
             station: (p.station ?? null) as Station | null,
             online: p.online !== false,
             joinedAt: p.joinedAt ?? 0,
-            color: p.color ?? '#F28CA8',
+            outfit: p.outfit ?? DEFAULT_OUTFIT,
+            color: outfitColor(p.outfit ?? DEFAULT_OUTFIT),
           }))
           .sort((a, b) => a.joinedAt - b.joinedAt);
         this.owners = stationOwners(this.players, this.hostUid);

@@ -1,10 +1,7 @@
 // Kết nối Firebase (đăng nhập ẩn danh) và tạo / vào phòng chơi chung.
 // File này chỉ được tải khi người chơi bấm "Mời bạn" (chơi một mình không cần mạng).
-import { getApps, initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously } from 'firebase/auth';
 import {
   get,
-  getDatabase,
   ref,
   remove,
   runTransaction,
@@ -13,10 +10,9 @@ import {
   update,
   type Database,
 } from 'firebase/database';
-import { APRON_COLORS } from '../config/characters';
 import { ROOM } from '../config/room';
 import type { ShopState } from '../core/types';
-import { firebaseConfig } from './firebaseConfig';
+import { connect } from './firebase';
 import { randomCode } from './roomCode';
 import { encodeState } from './serialize';
 
@@ -57,14 +53,6 @@ export async function releaseSeat(db: Database, code: string, uid: string): Prom
   }
 }
 
-/** Khởi tạo Firebase và đăng nhập ẩn danh (một lần). */
-export async function connect(): Promise<{ db: Database; uid: string }> {
-  const app = getApps()[0] ?? initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const cred = auth.currentUser ? { user: auth.currentUser } : await signInAnonymously(auth);
-  return { db: getDatabase(app), uid: cred.user.uid };
-}
-
 /** Xóa các phòng cũ (quá 24 giờ) do chính mình tạo — gói miễn phí không có máy chủ để tự dọn. */
 async function cleanupOldRooms(db: Database, uid: string): Promise<void> {
   try {
@@ -83,7 +71,7 @@ async function cleanupOldRooms(db: Database, uid: string): Promise<void> {
 }
 
 /** Mở tiệm cho bạn bè: tạo mã phòng mới, mình là chủ phòng + host. */
-export async function createRoom(name: string, shop: ShopState): Promise<RoomSession> {
+export async function createRoom(name: string, outfit: string, shop: ShopState): Promise<RoomSession> {
   const { db, uid } = await connect();
   await cleanupOldRooms(db, uid);
   for (let attempt = 0; attempt < 6; attempt++) {
@@ -102,7 +90,7 @@ export async function createRoom(name: string, shop: ShopState): Promise<RoomSes
       joinedAt: Date.now(),
       online: true,
       lastSeen: serverTimestamp(),
-      color: APRON_COLORS[0],
+      outfit,
     });
     await set(ref(db, `rooms/${code}/state`), { data: encodeState({ ...shop, solo: false }), seq: 0 });
     await set(ref(db, `userRooms/${uid}/${code}`), Date.now());
@@ -112,7 +100,7 @@ export async function createRoom(name: string, shop: ShopState): Promise<RoomSes
 }
 
 /** Vào tiệm bạn bằng mã. */
-export async function joinRoom(code: string, name: string): Promise<RoomSession | JoinError> {
+export async function joinRoom(code: string, name: string, outfit: string): Promise<RoomSession | JoinError> {
   let conn: { db: Database; uid: string };
   try {
     conn = await connect();
@@ -130,7 +118,7 @@ export async function joinRoom(code: string, name: string): Promise<RoomSession 
     // Đã từng ở phòng này (vào lại sau khi mất mạng) thì giữ nguyên thông tin cũ
     const existing = await get(playerRef).catch(() => null);
     if (existing?.exists()) {
-      await update(playerRef, { name, online: true, lastSeen: serverTimestamp() });
+      await update(playerRef, { name, outfit, online: true, lastSeen: serverTimestamp() });
     } else {
       await set(playerRef, {
         name,
@@ -138,7 +126,7 @@ export async function joinRoom(code: string, name: string): Promise<RoomSession 
         joinedAt: Date.now(),
         online: true,
         lastSeen: serverTimestamp(),
-        color: APRON_COLORS[Math.floor(Math.random() * APRON_COLORS.length)],
+        outfit,
       });
     }
   } catch {

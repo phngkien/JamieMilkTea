@@ -1,6 +1,6 @@
 // Màn Kho: số tồn, nhập hàng, mở khóa món mới. Tiệm vẫn chạy trong lúc mở màn này.
 import { LOW_STOCK_AT, STOCK, UNLOCKS, stockIdOfTea, stockIdOfTopping } from '../config/inventory';
-import { STOCK_TEXT, fill } from '../config/strings';
+import { SHOP_TEXT, STOCK_TEXT, fill } from '../config/strings';
 import { getTea } from '../config/teas';
 import { getTopping } from '../config/toppings';
 import { formatMoney } from '../core/economy';
@@ -22,13 +22,14 @@ export function stockScreenKey(state: ShopState): string {
   return JSON.stringify([state.cash, state.stock, state.unlockedTeas, state.unlockedToppings, state.day, state.upgrades]);
 }
 
-export function renderStockScreen(state: ShopState): string {
+/** `canSpend` = false: người không phải chủ tiệm chỉ xem, không nhập / mở khóa được. */
+export function renderStockScreen(state: ShopState, canSpend = true): string {
   const rows = STOCK.filter((s) => isAvailable(state, s.id))
     .map((s) => {
       const count = state.stock[s.id] ?? 0;
       const level = count === 0 ? 'out' : count <= LOW_STOCK_AT ? 'low' : '';
       const price = restockPrice(state, s.id);
-      const canBuy = state.cash >= price;
+      const canBuy = canSpend && state.cash >= price;
       return `
         <li class="stock-row ${level}">
           <span class="stock-name">${esc(s.name)}</span>
@@ -45,7 +46,7 @@ export function renderStockScreen(state: ShopState): string {
       const name = u.kind === 'tea' ? getTea(u.id).name : getTopping(u.id).name;
       const kind = u.kind === 'tea' ? STOCK_TEXT.tea : STOCK_TEXT.topping;
       const early = state.day < u.minDay;
-      const canBuy = !early && state.cash >= u.price;
+      const canBuy = canSpend && !early && state.cash >= u.price;
       const button = early
         ? `<span class="stock-wait">${esc(fill(STOCK_TEXT.fromDay, { day: u.minDay }))}</span>`
         : `<button type="button" class="unlock" data-action="unlock" data-kind="${u.kind}" data-id="${esc(u.id)}" ${
@@ -66,6 +67,7 @@ export function renderStockScreen(state: ShopState): string {
       <div class="modal-cash">${esc(fill(STOCK_TEXT.cash, { cash: formatMoney(state.cash) }))}</div>
     </header>
     <div class="modal-body">
+      ${canSpend ? '' : `<p class="hint">${esc(SHOP_TEXT.ownerOnly)}</p>`}
       <h3>${esc(STOCK_TEXT.ingredients)}</h3>
       <ul class="stock-list">${rows}</ul>
       ${locked ? `<h3>${esc(STOCK_TEXT.newItems)}</h3><p class="hint">${esc(STOCK_TEXT.unlockGift)}</p><ul class="stock-list">${locked}</ul>` : ''}

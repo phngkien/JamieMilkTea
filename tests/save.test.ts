@@ -20,7 +20,7 @@ describe('save', () => {
       { type: 'RESTOCK', item: STOCK_ICE },
     ]).state;
     state = { ...state, ratingSum: 9, ratingCount: 2 };
-    const save = migrate(JSON.parse(JSON.stringify(createSave(state, defaultSettings(), 123))));
+    const save = migrate(JSON.parse(JSON.stringify(createSave(state, defaultSettings(), { now: 123 }))));
     expect(save).not.toBeNull();
     const restored = restoreShop(save!);
     expect(restored.day).toBe(2);
@@ -98,8 +98,8 @@ describe('save', () => {
   });
 
   it('newest chọn bản có updatedAt mới hơn', () => {
-    const a = createSave(createShopState(1), defaultSettings(), 100);
-    const b = createSave(createShopState(2), defaultSettings(), 200);
+    const a = createSave(createShopState(1), defaultSettings(), { now: 100 });
+    const b = createSave(createShopState(2), defaultSettings(), { now: 200 });
     expect(newest(a, b)).toBe(b);
     expect(newest(b, a)).toBe(b);
     expect(newest(null, a)).toBe(a);

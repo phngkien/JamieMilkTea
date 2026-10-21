@@ -12,7 +12,7 @@ import {
 } from '../config/inventory';
 import { DAY_LENGTH_MS, QUEUE_PATIENCE_FACTOR, getDayConfig } from '../config/progression';
 import { SCORING } from '../config/scoring';
-import { SHOP_NAME } from '../config/strings';
+import { SHOP_NAME, SHOP_NAME_MAX } from '../config/strings';
 import { STARTING_TEAS } from '../config/teas';
 import { STARTING_TOPPINGS } from '../config/toppings';
 import {
@@ -377,6 +377,11 @@ function applyAction(state: ShopState, action: Action, actor: string | null): Re
       });
     case 'BUY_UPGRADE':
       return inventoryResult(state, action, buyUpgrade(state, action.id), { type: 'upgraded', id: action.id });
+    case 'RENAME_SHOP': {
+      const name = action.name.trim().slice(0, SHOP_NAME_MAX);
+      if (!name) return reject(state, action, 'unknown');
+      return { state: { ...state, shopName: name }, events: [{ type: 'renamed', name }] };
+    }
     case 'END_DAY': {
       if (state.phase === 'closed') return reject(state, action, 'dayClosed');
       const { state: closed, summary } = closeDay(state);

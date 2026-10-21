@@ -102,6 +102,27 @@ export interface StaffDay {
   score: StationTally;
 }
 
+/** Thống kê lâu dài của một người ở một trạm. Điểm trung bình = scoreSum / cups. */
+export interface StationStat {
+  cups: number;
+  scoreSum: number;
+}
+
+/** Hồ sơ cá nhân (CLAUDE.md mục 10): đi theo người chơi sang tiệm của người khác. */
+export interface Profile {
+  uid: string;
+  name: string;
+  /** Outfit đang mặc và các outfit đã mua (id trong config/outfits). */
+  outfit: string;
+  ownedOutfits: string[];
+  /** Tiền tip cá nhân (đồng), dùng mua outfit. */
+  tipCoins: number;
+  stats: Record<CupStation, StationStat>;
+  /** Số lần đạt "Nhân viên xuất sắc". */
+  excellent: number;
+  updatedAt: number;
+}
+
 export interface DaySummary extends DayStats {
   day: number;
   /** Lãi = doanh thu − nguyên liệu đã dùng − hao phí − tiền thuê. */
@@ -168,6 +189,7 @@ export type Action =
   | { type: 'RESTOCK'; item: string }
   | { type: 'UNLOCK_ITEM'; kind: 'tea' | 'topping'; id: string }
   | { type: 'BUY_UPGRADE'; id: string }
+  | { type: 'RENAME_SHOP'; name: string }
   | { type: 'END_DAY' }
   | { type: 'START_DAY' };
 
@@ -248,6 +270,7 @@ export type GameEvent =
   | { type: 'restocked'; item: string; amount: number; price: number }
   | { type: 'unlocked'; kind: 'tea' | 'topping'; id: string }
   | { type: 'upgraded'; id: string }
+  | { type: 'renamed'; name: string }
   | { type: 'dayEnded'; summary: DaySummary }
   | { type: 'dayStarted'; day: number };
 

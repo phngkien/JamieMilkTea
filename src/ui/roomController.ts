@@ -19,6 +19,14 @@ export interface RoomHooks {
   backToSolo: (roomState: ShopState | null) => Promise<void>;
   getName: () => string;
   setName: (name: string) => void;
+  /** Outfit đang mặc (mang vào phòng). */
+  getOutfit: () => string;
+  /** Đăng nhập / đồng bộ cloud (trước khi mở phòng). */
+  connect: () => Promise<void>;
+  /** Vừa mở phòng ở tiệm của mình: gắn tiệm với phòng trên cloud. */
+  onRoomCreated: (shop: ShopState, code: string) => Promise<void>;
+  /** Trước khi rời phòng: lưu và đẩy tiến độ lên cloud. */
+  beforeLeave: () => Promise<void>;
 }
 
 export class RoomController {
@@ -91,7 +99,9 @@ export class RoomController {
     try {
       const shop = this.hooks.shopForRoom();
       const [{ createRoom }, { FirebaseAdapter }] = await Promise.all([import('../net/room'), import('../net/FirebaseAdapter')]);
-      const session = await createRoom(name, shop);
+      await this.hooks.connect();
+      const session = await createRoom(name, this.hooks.getOutfit(), shop);
+      await this.hooks.onRoomCreated(shop, session.code);
       this.enterRoom(new FirebaseAdapter(session, { ...shop, solo: false }));
     } catch {
       this.busy = false;
@@ -112,7 +122,8 @@ export class RoomController {
     let result: RoomSession | 'notFound' | 'full' | 'offline';
     try {
       const { joinRoom } = await import('../net/room');
-      result = await joinRoom(code, name);
+      await this.hooks.connect();
+      result = await joinRoom(code, name, this.hooks.getOutfit());
     } catch {
       result = 'offline';
     }
@@ -162,6 +173,12 @@ export class RoomController {
         this.overlay.modal.close();
       }
     }
+    // Chủ tiệm đã đóng phòng: ai cũng quay về tiệm của mình
+    if (info.status === 'closed' && room.localId !== info.ownerUid) {
+      this.overlay.toast.show(ROOM_TEXT.closedByOwner, 'warn', 4000);
+      void this.leave();
+      return;
+    }
     this.overlay.setRoomBadge(info.code);
     if (this.overlay.modal.current === 'room' && this.overlay.modal.tag === 'lobby') {
       const key = lobbyKey(info, room.getOwners());
@@ -190,6 +207,7 @@ export class RoomController {
     if (!room) return;
     if (action === 'close') this.overlay.modal.close();
     else if (action === 'open') await room.openShop();
+    else if (action === 'allow-spending') await room.setAllowSpending(!room.getRoomInfo().allowSpending);
     else if (action === 'station') {
       const s = data.station as Station;
       const current = room.getPlayers().find((p) => p.uid === room.localId)?.station ?? null;
@@ -224,6 +242,7 @@ export class RoomController {
     this.unsubRoom = null;
     this.overlay.modal.close();
     this.overlay.setRoomMode(false);
+    await this.hooks.beforeLeave();
     await room.leave();
     await this.hooks.backToSolo(isOwner ? state : null);
   }
