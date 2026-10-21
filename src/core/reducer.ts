@@ -27,11 +27,13 @@ import { arrivalGap, closeDay, customersForDay, emptyDayStats, startDay } from '
 import { cupPrice } from './economy';
 import { consume, restock, unlockItem, type InventoryResult } from './inventory';
 import { scoreCup, starsFromScore } from './scoring';
+import { CUP_CHAIN } from './stations';
 import type { Action, CupState, Customer, GameEvent, ReduceResult, RejectReason, ShopState } from './types';
 
 /** Tiệm mới tinh khi bắt đầu chơi. */
 export function createShopState(seed: number, day = 1): ShopState {
   return {
+    solo: true,
     day,
     seed,
     phase: 'open',
@@ -208,6 +210,7 @@ const NEEDS_OPEN_SHOP = new Set<Action['type']>([
   'SEAL_CUP',
   'SERVE_CUP',
   'DISCARD_CUP',
+  'PASS_CUP',
   'CUSTOMER_ARRIVE',
 ]);
 
@@ -215,10 +218,12 @@ export function reduce(state: ShopState, action: Action): ReduceResult {
   if (state.phase === 'closed' && NEEDS_OPEN_SHOP.has(action.type)) return reject(state, action, 'dayClosed');
   switch (action.type) {
     case 'PICK_CUP': {
-      if (state.cups.length >= BOARD_SLOTS) return reject(state, action, 'boardFull');
+      // Chơi một mình: một ly trên bảng. Nhiều người: mỗi trạm giữ tối đa một ly.
+      if (state.solo && state.cups.length >= BOARD_SLOTS) return reject(state, action, 'boardFull');
+      if (!state.solo && state.cups.some((c) => c.station === 'tea')) return reject(state, action, 'stationBusy');
       const used = consume(state.stock, stockIdOfCup(action.size));
       if (!used) return reject(state, action, 'outOfStock');
-      const cup = createCup(`cup${state.nextCupNumber}`, action.size, used.cost);
+      const cup = createCup(`cup${state.nextCupNumber}`, action.size, used.cost, state.customers[0]?.id ?? null);
       return {
         state: { ...state, stock: used.stock, cups: [...state.cups, cup], nextCupNumber: state.nextCupNumber + 1 },
         events: [{ type: 'cupPicked', cupId: cup.id }],
@@ -267,6 +272,18 @@ export function reduce(state: ShopState, action: Action): ReduceResult {
           today: { ...state.today, waste: state.today.waste + cup.cost, wasteCups: state.today.wasteCups + 1 },
         },
         events: [{ type: 'cupDiscarded', cupId: action.cupId }],
+      };
+    }
+    case 'PASS_CUP': {
+      const cup = state.cups.find((c) => c.id === action.cupId);
+      if (!cup) return reject(state, action, 'noCup');
+      if (cup.ruined) return reject(state, action, 'ruined');
+      // Chỉ chuyền xuôi theo chuỗi trạm, và trạm nhận phải đang trống
+      if (CUP_CHAIN.indexOf(action.to) <= CUP_CHAIN.indexOf(cup.station)) return reject(state, action, 'unknown');
+      if (state.cups.some((c) => c.station === action.to)) return reject(state, action, 'stationBusy');
+      return {
+        state: replaceCup(state, { ...cup, station: action.to }),
+        events: [{ type: 'cupPassed', cupId: cup.id, to: action.to }],
       };
     }
     case 'CUSTOMER_ARRIVE':

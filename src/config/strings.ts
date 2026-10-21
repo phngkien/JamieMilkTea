@@ -90,6 +90,8 @@ export const REJECT_TEXT: Record<RejectReason, string> = {
   tooEarly: 'Chưa tới ngày mở được món này',
   alreadyUnlocked: 'Món này đã mở rồi',
   dayClosed: 'Tiệm đã đóng cửa',
+  stationBusy: 'Trạm đó đang có ly rồi',
+  notYourStation: 'Đây là trạm của bạn khác',
   unknown: 'Không làm được',
 };
 

@@ -4,6 +4,8 @@ export type Size = 'M' | 'L';
 export type SugarLevel = 0 | 30 | 50 | 70 | 100;
 export type IceLevel = 'none' | 'less' | 'normal';
 export type Station = 'cashier' | 'tea' | 'topping' | 'stock';
+/** Các trạm mà ly đi qua, theo thứ tự (CLAUDE.md mục 11). */
+export type CupStation = 'tea' | 'topping' | 'cashier';
 
 export interface ToppingPortion {
   id: string;
@@ -42,6 +44,10 @@ export interface CupState {
   ruined: boolean;
   /** Giá vốn nguyên liệu đã dùng cho ly này (đồng). */
   cost: number;
+  /** Ly đang nằm ở trạm nào (chơi nhiều người: chỉ người giữ trạm đó được sửa ly). */
+  station: CupStation;
+  /** Khách đang ở quầy lúc lấy cốc — để tô viền ly cùng màu với khách. */
+  forCustomer: string | null;
 }
 
 export interface Customer {
@@ -91,6 +97,8 @@ export interface DaySummary extends DayStats {
 export type DayPhase = 'open' | 'closing' | 'closed';
 
 export interface ShopState {
+  /** true = chơi một mình (một ly, không cần chuyền); false = phòng nhiều người. */
+  solo: boolean;
   day: number;
   seed: number;
   phase: DayPhase;
@@ -127,6 +135,7 @@ export type Action =
   | { type: 'SEAL_CUP'; cupId: string }
   | { type: 'SERVE_CUP'; cupId: string; customerId: string }
   | { type: 'DISCARD_CUP'; cupId: string }
+  | { type: 'PASS_CUP'; cupId: string; to: CupStation }
   | { type: 'CUSTOMER_ARRIVE'; customer: Customer }
   | { type: 'CUSTOMER_LEAVE'; customerId: string }
   | { type: 'TICK'; dt: number }
@@ -154,6 +163,8 @@ export type RejectReason =
   | 'tooEarly'
   | 'alreadyUnlocked'
   | 'dayClosed'
+  | 'stationBusy'
+  | 'notYourStation'
   | 'unknown';
 
 export interface CupScore {
@@ -182,6 +193,7 @@ export type GameEvent =
   | { type: 'toppingAdded'; cupId: string; topping: string }
   | { type: 'cupSealed'; cupId: string }
   | { type: 'cupDiscarded'; cupId: string }
+  | { type: 'cupPassed'; cupId: string; to: CupStation }
   | {
       type: 'served';
       cupId: string;

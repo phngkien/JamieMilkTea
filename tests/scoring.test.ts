@@ -19,6 +19,8 @@ function perfectCup(spec: CupSpec = SPEC): CupState {
     sealed: true,
     ruined: false,
     cost: 0,
+    station: 'tea',
+    forCustomer: null,
   };
 }
 
