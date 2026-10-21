@@ -82,9 +82,30 @@ Lần đầu `git push`, Windows có thể mở cửa sổ **Connect to GitHub**
 7. Kéo ly vào **Máy ép nắp**, rồi kéo ly tới khách (hoặc chạm nút **Giao**).
 8. Ly hỏng / làm sai thì kéo vào **Thùng rác**.
 
-Vuốt nền để cuộn; thanh dưới cùng có nút nhảy nhanh **Quầy trà · Pha ly · Topping**.
+Vuốt nền để cuộn; thanh dưới cùng có nút nhảy nhanh **Quầy trà · Pha ly · Topping · Kho hàng**.
 
-## 5. Cấu trúc dự án (tóm tắt)
+**Kho và tiền:**
+
+- Mỗi bình trà, chồng cốc, hũ topping, đá, nước đường có số tồn ở góc. Còn ít thì nhãn nhấp nháy cam; hết thì hiện chữ **"Hết"** và không dùng được.
+- Bấm **Kho hàng** để nhập thêm (trừ tiền két) hoặc mở khóa trà / topping mới (có món phải đợi tới ngày nhất định). Trên màn hình ngang, nút Kho nằm trên thanh trên cùng.
+- Một ngày dài khoảng 6 phút (08:00 → 20:00). Hết giờ thì không nhận khách mới; phục vụ xong khách cuối thì hiện bảng **"Hết ngày N"**: doanh thu, chi phí, lãi, két.
+- Lãi = doanh thu − nguyên liệu của các ly đã bán − hao phí (ly đổ / hỏng) − tiền thuê tiệm. Tiền nhập hàng nằm ở phần **Két**.
+
+**Lưu game:** game tự lưu trên máy (khi giao ly, nhập hàng, cuối ngày, khi đóng tab). Mở lại sẽ chơi tiếp ở lúc mở cửa (08:00) của ngày đang chơi. Muốn chơi lại từ đầu: nút **⚙** → **Chơi lại từ đầu** (hỏi lại 2 lần).
+
+## 5. Chỉnh số liệu cân bằng
+
+| Muốn chỉnh | Sửa file |
+|---|---|
+| Két ban đầu, tiền thuê, số tồn ban đầu, giá nhập, gói nhập, giá mở khóa | `src/config/inventory.ts` |
+| Số khách mỗi ngày, kiên nhẫn, tỉ lệ order 2 ly, độ dài một ngày | `src/config/progression.ts` |
+| Giá bán trà / topping | `src/config/teas.ts`, `src/config/toppings.ts` |
+| Phụ thu size L, vạch xanh, tốc độ rót | `src/config/cup.ts` |
+| Cách chấm điểm | `src/config/scoring.ts` |
+
+Mẹo khi chạy `npm run dev`: mở Console của trình duyệt (F12) và gõ `jamie.adapter.getState()` để xem toàn bộ số liệu đang chạy.
+
+## 6. Cấu trúc dự án (tóm tắt)
 
 - `src/config/` — số liệu game (giá, trà, topping, độ khó, chữ tiếng Việt). Muốn chỉnh cân bằng game thì sửa ở đây.
 - `src/core/` — luật chơi (không phụ thuộc hình ảnh), có test trong `tests/`.
@@ -92,5 +113,6 @@ Vuốt nền để cuộn; thanh dưới cùng có nút nhảy nhanh **Quầy tr
 - `src/layout/` — vị trí mọi vật cho màn hình dọc và ngang.
 - `src/ui/` — HUD, thanh nút, thẻ hướng dẫn (HTML/CSS).
 - `src/net/` — `LocalAdapter` cho chơi một mình (sau này thêm chơi nhiều người).
+- `src/save/` — lưu game trên máy (IndexedDB + localStorage).
 
 Thư mục `_tham-khao/` chỉ để tham khảo, **không bao giờ** được đưa lên GitHub (đã có trong `.gitignore`).

@@ -1,18 +1,27 @@
-// Thanh HUD cố định phía trên: ngày, tên tiệm, tiền, sao và số lượt đánh giá.
-import { SHOP_NAME, UI_TEXT, fill } from '../config/strings';
+// Thanh HUD cố định phía trên: cài đặt, ngày + đồng hồ, tên tiệm + tiền két, sao + số lượt đánh giá.
+import { SHOP_NAME, STOCK_TEXT, UI_TEXT, fill } from '../config/strings';
+import { clockText } from '../core/day';
 import { formatMoney, formatRating } from '../core/economy';
 import type { ShopState } from '../core/types';
 
 export class Hud {
   private day: HTMLElement;
+  private clock: HTMLElement;
   private money: HTMLElement;
   private stars: HTMLElement;
   private rating: HTMLElement;
   private lastKey = '';
 
-  constructor(root: HTMLElement) {
+  constructor(root: HTMLElement, onSettings: () => void, onStock: () => void) {
     root.innerHTML = `
-      <div class="hud-left"><div class="hud-day"></div></div>
+      <div class="hud-left">
+        <button type="button" class="hud-btn hud-settings" aria-label="Cài đặt">⚙</button>
+        <button type="button" class="hud-btn hud-stock"></button>
+        <div class="hud-daybox">
+          <div class="hud-day"></div>
+          <div class="hud-clock"></div>
+        </div>
+      </div>
       <div class="hud-center">
         <div class="hud-shop"></div>
         <div class="hud-money"></div>
@@ -22,18 +31,27 @@ export class Hud {
         <div class="hud-rating"></div>
       </div>`;
     this.day = root.querySelector('.hud-day')!;
+    this.clock = root.querySelector('.hud-clock')!;
     this.money = root.querySelector('.hud-money')!;
     this.stars = root.querySelector('.hud-stars')!;
     this.rating = root.querySelector('.hud-rating')!;
     root.querySelector('.hud-shop')!.textContent = SHOP_NAME;
+    const stock = root.querySelector<HTMLButtonElement>('.hud-stock')!;
+    stock.textContent = STOCK_TEXT.title;
+    stock.addEventListener('click', onStock);
+    root.querySelector('.hud-settings')!.addEventListener('click', onSettings);
   }
 
   update(state: ShopState): void {
-    const key = `${state.day}|${state.cash}|${state.ratingSum}|${state.ratingCount}`;
+    const clock = clockText(state.time);
+    const key = `${state.day}|${clock}|${state.cash}|${state.ratingSum}|${state.ratingCount}|${state.phase}`;
     if (key === this.lastKey) return;
     this.lastKey = key;
     this.day.textContent = fill(UI_TEXT.day, { n: state.day });
+    this.clock.textContent = `🕒 ${clock}`;
+    this.clock.classList.toggle('closing', state.phase !== 'open');
     this.money.textContent = formatMoney(state.cash);
+    this.money.classList.toggle('negative', state.cash < 0);
     const avg = state.ratingCount ? state.ratingSum / state.ratingCount : 0;
     const full = Math.round(avg);
     this.stars.textContent = '★'.repeat(full) + '☆'.repeat(5 - full);

@@ -3,7 +3,15 @@
 import Phaser from 'phaser';
 import { OVERFLOW_AT, SIZES } from '../config/cup';
 import { PALETTE, hex } from '../config/palette';
-import { EVENT_TEXT, REJECT_TEXT, STATUS_TEXT, UI_TEXT, fill } from '../config/strings';
+import {
+  LOW_STOCK_AT,
+  STOCK_ICE,
+  STOCK_SUGAR,
+  stockIdOfCup,
+  stockIdOfTea,
+  stockIdOfTopping,
+} from '../config/inventory';
+import { EVENT_TEXT, REJECT_TEXT, STATUS_TEXT, SUMMARY_TEXT, UI_TEXT, fill } from '../config/strings';
 import { TEAS } from '../config/teas';
 import { TOPPINGS } from '../config/toppings';
 import { describeCupStatus } from '../core/brewing';
@@ -15,6 +23,7 @@ import { CupStack } from '../entities/CupStack';
 import { box, text } from '../entities/draw';
 import { IceBin } from '../entities/IceBin';
 import { OrderBubble } from '../entities/OrderBubble';
+import type { Prop } from '../entities/Prop';
 import { QueueStrip } from '../entities/QueueStrip';
 import { SealMachine } from '../entities/SealMachine';
 import { ServeButton } from '../entities/ServeButton';
@@ -32,8 +41,6 @@ import { ScrollController } from './ScrollController';
 /** Kéo ly sát mép trên/dưới màn hình (đơn vị khung) thì cảnh tự cuộn theo. */
 const EDGE_SCROLL_ZONE = 160;
 const EDGE_SCROLL_SPEED = 1.1; // đơn vị khung mỗi ms
-/** Id khách đầu tiên của ngày — khách được hướng dẫn. */
-const TUTORIAL_CUSTOMER_ID = 'c0';
 
 interface PourState {
   cupId: string;
@@ -78,6 +85,9 @@ export class ShopScene extends Phaser.Scene {
   private lastQueueKey = '';
   private lastStatus = '';
   private activeSection: Section | null = null;
+  /** Các vật có nhãn số tồn, kèm mã nguyên liệu trong kho. */
+  private stockProps: { prop: Prop; stockId: string }[] = [];
+  private lastPhase: ShopState['phase'] | null = null;
   private unsubscribe: (() => void) | null = null;
 
   constructor() {
@@ -93,6 +103,12 @@ export class ShopScene extends Phaser.Scene {
 
     this.scroll = new ScrollController(this);
     this.scroll.setRange(this.layout.worldHeight - this.layout.viewHeight);
+    // Dựng lại cảnh (ví dụ sau khi mở khóa món mới) thì giữ nguyên chỗ đang xem
+    const keepScroll = this.registry.get('scrollY') as number | undefined;
+    if (typeof keepScroll === 'number') {
+      this.scroll.nudge(keepScroll);
+      this.registry.remove('scrollY');
+    }
     this.overlay.onJump = (section) => this.scroll.scrollTo(this.layout.sections[section]);
     this.overlay.onSkipTutorial = () => this.finishTutorial();
 
@@ -123,6 +139,8 @@ export class ShopScene extends Phaser.Scene {
     this.lastQueueKey = '';
     this.lastStatus = '';
     this.activeSection = null;
+    this.stockProps = [];
+    this.lastPhase = null;
   }
 
   // ───────────────────────── Vẽ cảnh tĩnh ─────────────────────────
@@ -199,6 +217,7 @@ export class ShopScene extends Phaser.Scene {
       const d = new TeaDispenser(this, rect, tea, !state.unlockedTeas.includes(tea.id), this.ts);
       d.hit.on('pointerdown', (pointer: Phaser.Input.Pointer) => this.startPour(d, pointer));
       this.dispensers.push(d);
+      if (!d.locked) this.stockProps.push({ prop: d, stockId: stockIdOfTea(tea.id) });
     });
 
     for (const size of ['M', 'L'] as const) {
@@ -208,6 +227,7 @@ export class ShopScene extends Phaser.Scene {
         this.adapter.dispatch({ type: 'PICK_CUP', size });
       });
       this.cupStacks.push(stack);
+      this.stockProps.push({ prop: stack, stockId: stockIdOfCup(size) });
     }
 
     this.sealer = new SealMachine(this, L.sealer, this.ts).onTap(() => {
@@ -240,7 +260,9 @@ export class ShopScene extends Phaser.Scene {
         }, () => jar.refuse());
       });
       this.toppingJars.push(jar);
+      if (!jar.locked) this.stockProps.push({ prop: jar, stockId: stockIdOfTopping(topping.id) });
     });
+    this.stockProps.push({ prop: this.ice, stockId: STOCK_ICE }, { prop: this.syrup, stockId: STOCK_SUGAR });
 
     this.queue = new QueueStrip(this, L.queue);
     this.bubble = new OrderBubble(this, L.bubble, this.ts);
@@ -298,6 +320,7 @@ export class ShopScene extends Phaser.Scene {
     else if (cup.ruined) reason = 'ruined';
     else if (cup.sealed) reason = 'sealed';
     else if (cup.tea !== null && cup.tea !== d.tea.id) reason = 'differentTea';
+    else if (cup.tea === null && (this.adapter.getState().stock[stockIdOfTea(d.tea.id)] ?? 0) <= 0) reason = 'outOfStock';
     if (reason || !cup) {
       d.wiggle();
       this.overlay.toast.show(REJECT_TEXT[reason ?? 'noCup'], 'warn');
@@ -388,6 +411,7 @@ export class ShopScene extends Phaser.Scene {
           if (e.action === 'TAP_SYRUP') this.syrup.refuse();
           else if (e.action === 'SCOOP_ICE') this.ice.refuse();
           else if (e.action === 'ADD_TOPPING') this.lastJar?.refuse();
+          else if (e.action === 'PICK_CUP') for (const s of this.cupStacks) s.pop();
           break;
         case 'cupRuined':
           this.overlay.toast.show(EVENT_TEXT.ruined, 'warn', 2500);
@@ -419,7 +443,15 @@ export class ShopScene extends Phaser.Scene {
             this.moodOverride = { id: e.customerId, mood: 'sad' };
             this.overlay.toast.show(fill(EVENT_TEXT.customerLeft, { name: e.name }), 'warn', 2800);
           }
-          if (e.customerId === TUTORIAL_CUSTOMER_ID) this.finishTutorial();
+          if (e.customerId === this.registry.get('tutorialTarget')) this.finishTutorial();
+          break;
+        case 'unlocked':
+          // Món mới mở khóa: dựng lại cảnh để bình / hũ hết khóa, giữ chỗ đang xem
+          this.registry.set('scrollY', this.scroll.scrollY);
+          this.scene.restart();
+          return;
+        case 'dayStarted':
+          this.scroll.scrollTo(0);
           break;
         default:
           break;
@@ -467,7 +499,16 @@ export class ShopScene extends Phaser.Scene {
     this.syncView(state, true, time);
     this.updateTutorial(state, time);
     this.updateNav();
-    this.overlay.hud.update(state);
+    this.updateStock(state);
+  }
+
+  private updateStock(state: ShopState): void {
+    for (const { prop, stockId } of this.stockProps) prop.setStock(state.stock[stockId] ?? 0, LOW_STOCK_AT);
+    // Vừa hết giờ: báo ngừng nhận khách
+    if (this.lastPhase === 'open' && state.phase === 'closing') {
+      this.overlay.toast.show(SUMMARY_TEXT.closing, 'info', 3500);
+    }
+    this.lastPhase = state.phase;
   }
 
   private updatePour(state: ShopState, delta: number): void {
@@ -608,6 +649,7 @@ export class ShopScene extends Phaser.Scene {
   // ───────────────────────── Hướng dẫn lần đầu ─────────────────────────
 
   private finishTutorial(): void {
+    this.registry.set('tutorialTarget', null);
     this.registry.set('tutorialDone', true);
     this.overlay.tutorial.hide();
     this.highlight.clear();
@@ -637,7 +679,13 @@ export class ShopScene extends Phaser.Scene {
 
   private updateTutorial(state: ShopState, time: number): void {
     if (this.registry.get('tutorialDone')) return;
-    const step = currentTutorialStep(state, TUTORIAL_CUSTOMER_ID);
+    // Hướng dẫn gắn với một khách: khách đang ở quầy lúc hướng dẫn bắt đầu
+    let target = this.registry.get('tutorialTarget') as string | null;
+    if (!target && state.customers[0]) {
+      target = state.customers[0].id;
+      this.registry.set('tutorialTarget', target);
+    }
+    const step = target ? currentTutorialStep(state, target) : null;
     const rect = step ? this.targetRect(step.target) : null;
     if (!step || !rect || this.dragPointer) {
       this.overlay.tutorial.hide();
