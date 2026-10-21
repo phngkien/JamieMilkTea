@@ -12,6 +12,7 @@ import {
   getDayConfig,
 } from '../config/progression';
 import { generateCustomer } from './orders';
+import { upgradeEffects } from './upgrades';
 import { createRng, hashSeed } from './rng';
 import type { Action, DayStats, DaySummary, ShopState } from './types';
 
@@ -32,12 +33,14 @@ export function emptyDayStats(cashStart: number): DayStats {
     restock: 0,
     unlock: 0,
     rent: 0,
+    upgrade: 0,
+    staff: {},
   };
 }
 
-/** Số khách trong ngày: theo bảng độ khó, cộng thêm nếu sao trung bình cao. */
-export function customersForDay(day: number, ratingSum: number, ratingCount: number): number {
-  const base = getDayConfig(day).customers;
+/** Số khách trong ngày: theo bảng độ khó, cộng thêm nếu sao trung bình cao và nhờ nâng cấp (bảng hiệu...). */
+export function customersForDay(day: number, ratingSum: number, ratingCount: number, extra = 0): number {
+  const base = getDayConfig(day).customers + extra;
   if (ratingCount === 0) return base;
   const avg = ratingSum / ratingCount;
   const bonus = RATING_BONUS.find(([minStars]) => avg >= minStars)?.[1] ?? 0;
@@ -76,7 +79,9 @@ export function planHostActions(state: ShopState): Action[] {
     { teas: state.unlockedTeas, toppings: state.unlockedToppings },
     state.time,
   );
-  return [{ type: 'CUSTOMER_ARRIVE', customer }];
+  // Nâng cấp (ghế chờ...) làm khách kiên nhẫn lâu hơn
+  const factor = upgradeEffects(state.upgrades).patienceFactor;
+  return [{ type: 'CUSTOMER_ARRIVE', customer: { ...customer, drainPerSecond: customer.drainPerSecond * factor } }];
 }
 
 /** Lãi = doanh thu − nguyên liệu đã dùng − hao phí − tiền thuê. */
@@ -120,7 +125,7 @@ export function startDay(state: ShopState, day: number): ShopState {
     customers: [],
     cups: [],
     today: emptyDayStats(state.cash),
-    customersToday: customersForDay(day, state.ratingSum, state.ratingCount),
+    customersToday: customersForDay(day, state.ratingSum, state.ratingCount, upgradeEffects(state.upgrades).extraCustomers),
     nextCustomerIndex: 0,
     nextArrivalAt: getDayConfig(day).firstArrivalMs,
   };

@@ -48,6 +48,8 @@ export interface CupState {
   station: CupStation;
   /** Khách đang ở quầy lúc lấy cốc — để tô viền ly cùng màu với khách. */
   forCustomer: string | null;
+  /** Ai đã làm ly ở từng trạm (uid) — để chấm điểm cá nhân và chia tip. */
+  makers: Partial<Record<CupStation, string>>;
 }
 
 export interface Customer {
@@ -84,6 +86,20 @@ export interface DayStats {
   restock: number;
   unlock: number;
   rent: number;
+  /** Tiền mua nâng cấp và trang trí trong ngày. */
+  upgrade: number;
+  /** Công sức từng người trong ngày (theo uid): tip, số ly, điểm trạm. */
+  staff: Record<string, StaffDay>;
+}
+
+/** Số ly và tổng điểm của một người ở từng trạm (điểm trung bình = score / cups). */
+export type StationTally = Record<CupStation, number>;
+
+export interface StaffDay {
+  /** Tiền tip cá nhân (đồng) — không vào két. */
+  tips: number;
+  cups: StationTally;
+  score: StationTally;
 }
 
 export interface DaySummary extends DayStats {
@@ -124,6 +140,16 @@ export interface ShopState {
   nextCupNumber: number;
   unlockedTeas: string[];
   unlockedToppings: string[];
+  /** Tên tiệm (người chơi tự đặt). */
+  shopName: string;
+  /** Nâng cấp và đồ trang trí đã mua (id trong config/upgrades). */
+  upgrades: string[];
+  decor: string[];
+  /**
+   * Mã của "lượt chơi" hiện tại (đổi mỗi lần mở game / mở phòng). Dùng để cộng tip vào profile
+   * đúng một lần, kể cả khi chơi lại cùng một ngày.
+   */
+  runId: string;
 }
 
 export type Action =
@@ -141,6 +167,7 @@ export type Action =
   | { type: 'TICK'; dt: number }
   | { type: 'RESTOCK'; item: string }
   | { type: 'UNLOCK_ITEM'; kind: 'tea' | 'topping'; id: string }
+  | { type: 'BUY_UPGRADE'; id: string }
   | { type: 'END_DAY' }
   | { type: 'START_DAY' };
 
@@ -165,7 +192,12 @@ export type RejectReason =
   | 'dayClosed'
   | 'stationBusy'
   | 'notYourStation'
+  | 'notOwner'
+  | 'alreadyOwned'
   | 'unknown';
+
+/** Điểm cá nhân 0–100 theo từng trạm của một ly (CLAUDE.md mục 12). */
+export type StationScores = Record<CupStation, number>;
 
 export interface CupScore {
   total: number;
@@ -201,6 +233,9 @@ export type GameEvent =
       score: CupScore;
       money: number;
       orderComplete: boolean;
+      /** Tip của ly (đồng) và phần của từng người (uid → đồng). */
+      tip: number;
+      tips: Record<string, number>;
     }
   | { type: 'customerArrived'; customerId: string }
   | {
@@ -212,6 +247,7 @@ export type GameEvent =
     }
   | { type: 'restocked'; item: string; amount: number; price: number }
   | { type: 'unlocked'; kind: 'tea' | 'topping'; id: string }
+  | { type: 'upgraded'; id: string }
   | { type: 'dayEnded'; summary: DaySummary }
   | { type: 'dayStarted'; day: number };
 

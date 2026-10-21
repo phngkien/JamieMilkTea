@@ -26,3 +26,25 @@ export const SCORING = {
   /** Khách bỏ đi thì để lại số sao này. */
   leaveStars: 1,
 };
+
+/**
+ * Điểm cá nhân theo trạm (0–100 mỗi trạm). Tổng trọng số mỗi trạm = 100.
+ * - Quầy trà: đúng size, đúng loại trà, rót sát giữa vạch xanh.
+ * - Kệ topping: đúng đường, đá, topping.
+ * - Thu ngân: giao đúng khách đã gọi ly, giao nhanh (kiên nhẫn còn nhiều).
+ */
+export const STATION_SCORING = {
+  tea: { size: 40, teaType: 30, pour: 30 },
+  topping: { sugar: 30, ice: 20, topping: 50 },
+  cashier: { rightCustomer: 50, speed: 50 },
+};
+
+/** Tiền tip của khách hài lòng (CLAUDE.md mục 9.4 và 12). Tip vào tiền cá nhân, không vào két. */
+export const TIP = {
+  /** Ly dưới số điểm này thì khách không cho tip. */
+  minScore: 60,
+  /** Tip tối đa = giá ly × tỉ lệ này (ly 100 điểm). */
+  rate: 0.2,
+  /** Làm tròn tip tới bội số này (đồng). */
+  roundTo: 500,
+};

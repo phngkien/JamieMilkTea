@@ -92,6 +92,8 @@ export const REJECT_TEXT: Record<RejectReason, string> = {
   dayClosed: 'Tiệm đã đóng cửa',
   stationBusy: 'Trạm đó đang có ly rồi',
   notYourStation: 'Đây là trạm của bạn khác',
+  notOwner: 'Chỉ chủ tiệm mới được chi tiền két',
+  alreadyOwned: 'Tiệm đã có món này rồi',
   unknown: 'Không làm được',
 };
 
@@ -133,6 +135,10 @@ export const SUMMARY_TEXT = {
   cashRevenue: 'Tiền bán ly',
   cashRestock: 'Nhập hàng',
   cashUnlock: 'Mở khóa món mới',
+  cashUpgrade: 'Nâng cấp, trang trí',
+  myTips: 'Tip của bạn hôm nay',
+  teamTitle: 'Công sức hôm nay',
+  teamCups: '{n} ly',
   cashRent: 'Tiền thuê tiệm',
   cashEnd: 'Két cuối ngày',
   next: 'Ngày {day} →',

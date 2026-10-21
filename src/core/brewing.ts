@@ -28,6 +28,7 @@ export function createCup(id: string, size: Size, cost = 0, forCustomer: string 
     cost,
     station: 'tea',
     forCustomer,
+    makers: {},
   };
 }
 

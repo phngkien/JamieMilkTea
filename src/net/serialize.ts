@@ -1,8 +1,10 @@
 // Nén / giải nén state khi gửi qua Firebase Realtime Database.
 // Firebase bỏ mất giá trị null và mảng rỗng, nên phải đổi trước khi ghi và điền lại khi đọc.
 import { startingStock } from '../config/inventory';
+import { SHOP_NAME } from '../config/strings';
 import { emptyDayStats } from '../core/day';
-import type { CupState, Customer, ShopState } from '../core/types';
+import { emptyStaffDay } from '../core/economy';
+import type { CupState, CupStation, Customer, ShopState, StaffDay } from '../core/types';
 
 /** Đánh dấu "chưa giao" trong order.served (thay cho null). */
 const NOT_SERVED = -1;
@@ -49,7 +51,36 @@ function decodeCup(v: unknown): CupState {
     cost: num(c.cost),
     station: c.station === 'topping' || c.station === 'cashier' ? c.station : 'tea',
     forCustomer: str(c.forCustomer),
+    makers: decodeMakers(c.makers),
   };
+}
+
+const CUP_STATIONS: CupStation[] = ['tea', 'topping', 'cashier'];
+
+function decodeMakers(v: unknown): CupState['makers'] {
+  const m = isObj(v) ? v : {};
+  const out: CupState['makers'] = {};
+  for (const s of CUP_STATIONS) if (typeof m[s] === 'string') out[s] = m[s];
+  return out;
+}
+
+/** Bảng công sức trong ngày (uid → tip, số ly, điểm). Thiếu trường thì điền 0. */
+export function decodeStaff(v: unknown): Record<string, StaffDay> {
+  const out: Record<string, StaffDay> = {};
+  if (!isObj(v)) return out;
+  for (const [uid, raw] of Object.entries(v)) {
+    const d = isObj(raw) ? raw : {};
+    const day = emptyStaffDay();
+    day.tips = Math.max(0, num(d.tips));
+    const cups = isObj(d.cups) ? d.cups : {};
+    const score = isObj(d.score) ? d.score : {};
+    for (const s of CUP_STATIONS) {
+      day.cups[s] = Math.max(0, num(cups[s]));
+      day.score[s] = Math.max(0, num(score[s]));
+    }
+    out[uid] = day;
+  }
+  return out;
 }
 
 function decodeCustomer(v: unknown): Customer {
@@ -83,7 +114,12 @@ function decodeCustomer(v: unknown): Customer {
 export function decodeState(raw: unknown, history: ShopState['history'] = []): ShopState | null {
   if (!isObj(raw) || typeof raw.day !== 'number') return null;
   const stock = { ...startingStock(), ...(isObj(raw.stock) ? (raw.stock as Record<string, number>) : {}) };
-  const today = { ...emptyDayStats(num(raw.cash)), ...(isObj(raw.today) ? raw.today : {}) } as ShopState['today'];
+  const rawToday = isObj(raw.today) ? raw.today : {};
+  const today = {
+    ...emptyDayStats(num(raw.cash)),
+    ...rawToday,
+    staff: decodeStaff(rawToday.staff),
+  } as ShopState['today'];
   return {
     solo: raw.solo === true,
     day: num(raw.day, 1),
@@ -104,6 +140,10 @@ export function decodeState(raw: unknown, history: ShopState['history'] = []): S
     nextCupNumber: num(raw.nextCupNumber, 1),
     unlockedTeas: arr<string>(raw.unlockedTeas),
     unlockedToppings: arr<string>(raw.unlockedToppings),
+    shopName: str(raw.shopName, SHOP_NAME) ?? SHOP_NAME,
+    upgrades: arr<string>(raw.upgrades),
+    decor: arr<string>(raw.decor),
+    runId: str(raw.runId, '') ?? '',
   };
 }
 

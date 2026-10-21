@@ -40,6 +40,7 @@ export function renderSummary(s: DaySummary, waitText: string | null = null): st
         ${line(SUMMARY_TEXT.cashRevenue, plus(s.revenue), 'sub')}
         ${s.restock ? line(SUMMARY_TEXT.cashRestock, minus(s.restock), 'sub') : ''}
         ${s.unlock ? line(SUMMARY_TEXT.cashUnlock, minus(s.unlock), 'sub') : ''}
+        ${s.upgrade ? line(SUMMARY_TEXT.cashUpgrade, minus(s.upgrade), 'sub') : ''}
         ${line(SUMMARY_TEXT.cashRent, minus(s.rent), 'sub')}
         ${line(SUMMARY_TEXT.cashEnd, formatMoney(s.cashEnd), 'big cash')}
       </section>

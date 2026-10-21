@@ -34,6 +34,8 @@ export interface RoomInfo {
   players: PlayerInfo[];
   /** Máy mình đang có kết nối tới Firebase. */
   connected: boolean;
+  /** Host cho phép người giữ trạm Kho chi tiền két. */
+  allowSpending: boolean;
 }
 
 export interface NetAdapter {
@@ -51,6 +53,8 @@ export interface NetAdapter {
   update(dtMs: number): void;
   /** Ai giữ trạm nào (đã gộp trạm khi ít người). */
   getOwners(): StationOwners;
+  /** Mình có được chi tiền két không (nhập hàng, mở khóa, nâng cấp). */
+  canSpend(): boolean;
   getPlayers(): PlayerInfo[];
   /** Mình đang rót dở (null = thả tay). Gửi cho người khác xem. */
   setLivePour(pour: { cupId: string; tea: string; amount: number } | null): void;

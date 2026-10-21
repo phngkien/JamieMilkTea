@@ -66,6 +66,7 @@ export function actionStation(action: Action): Station | null {
       return 'cashier';
     case 'RESTOCK':
     case 'UNLOCK_ITEM':
+    case 'BUY_UPGRADE':
       return 'stock';
     case 'DISCARD_CUP':
     case 'PASS_CUP':
@@ -76,9 +77,28 @@ export function actionStation(action: Action): Station | null {
   }
 }
 
+/** Các thao tác tiêu tiền két (nhập hàng, mở khóa món, mua nâng cấp / trang trí). */
+export function isSpending(action: Action): boolean {
+  return action.type === 'RESTOCK' || action.type === 'UNLOCK_ITEM' || action.type === 'BUY_UPGRADE';
+}
+
+/** Ai được chi két trong phòng: chủ tiệm, và người giữ trạm Kho nếu host cho phép. */
+export interface SpendRule {
+  ownerUid: string;
+  /** Host đã bật "Cho trạm Kho chi tiền két". */
+  allowStock: boolean;
+}
+
+/** Người `uid` có được chi tiền két không (chơi đơn: không có luật → luôn được). */
+export function canSpend(owners: StationOwners, uid: string, rule: SpendRule | null): boolean {
+  if (!rule) return true;
+  return uid === rule.ownerUid || (rule.allowStock && owners.stock === uid);
+}
+
 /**
  * Người `uid` có được làm `action` không. Trả về null nếu được, hoặc lý do từ chối.
  * Thao tác trên một ly: phải giữ trạm ly đang nằm VÀ trạm của thao tác.
+ * Thao tác tiêu két: theo `spend` (chủ tiệm luôn được, dù đang ở trạm nào).
  */
 export function canPerform(
   state: ShopState,
@@ -86,7 +106,9 @@ export function canPerform(
   uid: string,
   action: Action,
   isHost: boolean,
+  spend: SpendRule | null = null,
 ): RejectReason | null {
+  if (isSpending(action) && spend) return canSpend(owners, uid, spend) ? null : 'notOwner';
   const station = actionStation(action);
   if (station === null) return isHost ? null : 'notYourStation';
   const mine = (s: Station) => owners[s] === uid;

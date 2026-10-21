@@ -12,6 +12,7 @@ import {
 } from '../config/inventory';
 import { DAY_LENGTH_MS, QUEUE_PATIENCE_FACTOR, getDayConfig } from '../config/progression';
 import { SCORING } from '../config/scoring';
+import { SHOP_NAME } from '../config/strings';
 import { STARTING_TEAS } from '../config/teas';
 import { STARTING_TOPPINGS } from '../config/toppings';
 import {
@@ -24,14 +25,24 @@ import {
   type BrewResult,
 } from './brewing';
 import { arrivalGap, closeDay, customersForDay, emptyDayStats, startDay } from './day';
-import { cupPrice } from './economy';
-import { consume, restock, unlockItem, type InventoryResult } from './inventory';
-import { scoreCup, starsFromScore } from './scoring';
+import { creditCup, cupPrice, splitTip, tipForCup } from './economy';
+import { buyUpgrade, consume, restock, restockPrice, unlockItem, type InventoryResult } from './inventory';
+import { scoreCup, starsFromScore, stationScores } from './scoring';
 import { CUP_CHAIN } from './stations';
-import type { Action, CupState, Customer, GameEvent, ReduceResult, RejectReason, ShopState } from './types';
+import type {
+  Action,
+  CupState,
+  CupStation,
+  Customer,
+  GameEvent,
+  ReduceResult,
+  RejectReason,
+  ShopState,
+} from './types';
+import { upgradeEffects } from './upgrades';
 
 /** Tiệm mới tinh khi bắt đầu chơi. */
-export function createShopState(seed: number, day = 1): ShopState {
+export function createShopState(seed: number, day = 1, runId = ''): ShopState {
   return {
     solo: true,
     day,
@@ -52,6 +63,10 @@ export function createShopState(seed: number, day = 1): ShopState {
     nextCupNumber: 1,
     unlockedTeas: [...STARTING_TEAS],
     unlockedToppings: [...STARTING_TOPPINGS],
+    shopName: SHOP_NAME,
+    upgrades: [],
+    decor: [],
+    runId,
   };
 }
 
@@ -120,7 +135,7 @@ function removeCustomer(state: ShopState, customer: Customer, reason: 'done' | '
   };
 }
 
-function serveCup(state: ShopState, action: Action & { type: 'SERVE_CUP' }): ReduceResult {
+function serveCup(state: ShopState, action: Action & { type: 'SERVE_CUP' }, actor: string | null): ReduceResult {
   const cup = state.cups.find((c) => c.id === action.cupId);
   if (!cup) return reject(state, action, 'noCup');
   if (cup.ruined) return reject(state, action, 'ruined');
@@ -143,7 +158,16 @@ function serveCup(state: ShopState, action: Action & { type: 'SERVE_CUP' }): Red
   const score: ReturnType<typeof scoreCup> = best;
 
   // Khách trả theo món mình gọi
-  const money = cupPrice(customer.order.cups[bestIndex]);
+  const spec = customer.order.cups[bestIndex];
+  const money = cupPrice(spec);
+  // Tip vào tiền cá nhân của những người làm ly, chia theo điểm trạm (không vào két)
+  const makers = actor ? { ...cup.makers, cashier: actor } : cup.makers;
+  const perStation = stationScores(spec, cup, customer.id, customer.patience);
+  const tip = tipForCup(money, score.total, upgradeEffects(state.upgrades).tipFactor);
+  const tips = splitTip(
+    tip,
+    (Object.keys(makers) as CupStation[]).flatMap((s) => (makers[s] ? [{ uid: makers[s], score: perStation[s] }] : [])),
+  );
   const served = customer.order.served.map((s, i) => (i === bestIndex ? score.total : s));
   const updatedCustomer: Customer = { ...customer, order: { ...customer.order, served } };
   const orderComplete = served.every((s) => s !== null);
@@ -158,10 +182,11 @@ function serveCup(state: ShopState, action: Action & { type: 'SERVE_CUP' }): Red
       cupsServed: state.today.cupsServed + 1,
       revenue: state.today.revenue + money,
       ingredients: state.today.ingredients + cup.cost,
+      staff: creditCup(state.today.staff, makers, perStation, tips),
     },
   };
   const events: GameEvent[] = [
-    { type: 'served', cupId: cup.id, customerId: customer.id, score, money, orderComplete },
+    { type: 'served', cupId: cup.id, customerId: customer.id, score, money, orderComplete, tip, tips },
   ];
   if (orderComplete) {
     const left = removeCustomer(next, updatedCustomer, 'done');
@@ -214,7 +239,39 @@ const NEEDS_OPEN_SHOP = new Set<Action['type']>([
   'CUSTOMER_ARRIVE',
 ]);
 
-export function reduce(state: ShopState, action: Action): ReduceResult {
+/** Thao tác trên ly thì ghi công cho trạm nào (null = không ghi). */
+function makerStation(state: ShopState, action: Action): CupStation | null {
+  switch (action.type) {
+    case 'POUR_TEA':
+      return 'tea';
+    case 'TAP_SYRUP':
+    case 'SCOOP_ICE':
+    case 'ADD_TOPPING':
+      return 'topping';
+    case 'SEAL_CUP':
+      return 'cashier';
+    case 'PASS_CUP':
+      // Chuyền ly đi cũng là đã làm xong phần của trạm đang giữ ly
+      return state.cups.find((c) => c.id === action.cupId)?.station ?? null;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Áp dụng một thao tác. `actor` là uid người làm (chơi đơn: 'me'; null = việc của hệ thống,
+ * ví dụ thời gian trôi). Thao tác trên ly thì ghi lại ai đã làm ở trạm nào để chấm điểm cá nhân.
+ */
+export function reduce(state: ShopState, action: Action, actor: string | null = null): ReduceResult {
+  const result = applyAction(state, action, actor);
+  if (!actor || !('cupId' in action) || result.events.some((e) => e.type === 'rejected')) return result;
+  const station = makerStation(state, action);
+  const cup = result.state.cups.find((c) => c.id === action.cupId);
+  if (!station || !cup || cup.makers[station] === actor) return result;
+  return { ...result, state: replaceCup(result.state, { ...cup, makers: { ...cup.makers, [station]: actor } }) };
+}
+
+function applyAction(state: ShopState, action: Action, actor: string | null): ReduceResult {
   if (state.phase === 'closed' && NEEDS_OPEN_SHOP.has(action.type)) return reject(state, action, 'dayClosed');
   switch (action.type) {
     case 'PICK_CUP': {
@@ -223,7 +280,8 @@ export function reduce(state: ShopState, action: Action): ReduceResult {
       if (!state.solo && state.cups.some((c) => c.station === 'tea')) return reject(state, action, 'stationBusy');
       const used = consume(state.stock, stockIdOfCup(action.size));
       if (!used) return reject(state, action, 'outOfStock');
-      const cup = createCup(`cup${state.nextCupNumber}`, action.size, used.cost, state.customers[0]?.id ?? null);
+      const created = createCup(`cup${state.nextCupNumber}`, action.size, used.cost, state.customers[0]?.id ?? null);
+      const cup = actor ? { ...created, makers: { tea: actor } } : created;
       return {
         state: { ...state, stock: used.stock, cups: [...state.cups, cup], nextCupNumber: state.nextCupNumber + 1 },
         events: [{ type: 'cupPicked', cupId: cup.id }],
@@ -260,7 +318,7 @@ export function reduce(state: ShopState, action: Action): ReduceResult {
     case 'SEAL_CUP':
       return brew(state, action, action.cupId, sealCup, (c) => [{ type: 'cupSealed', cupId: c.id }]);
     case 'SERVE_CUP':
-      return serveCup(state, action);
+      return serveCup(state, action, actor);
     case 'DISCARD_CUP': {
       const cup = state.cups.find((c) => c.id === action.cupId);
       if (!cup) return reject(state, action, 'noCup');
@@ -309,7 +367,7 @@ export function reduce(state: ShopState, action: Action): ReduceResult {
         type: 'restocked',
         item: action.item,
         amount: getStockDef(action.item).packSize,
-        price: getStockDef(action.item).packPrice,
+        price: restockPrice(state, action.item),
       });
     case 'UNLOCK_ITEM':
       return inventoryResult(state, action, unlockItem(state, action.kind, action.id), {
@@ -317,6 +375,8 @@ export function reduce(state: ShopState, action: Action): ReduceResult {
         kind: action.kind,
         id: action.id,
       });
+    case 'BUY_UPGRADE':
+      return inventoryResult(state, action, buyUpgrade(state, action.id), { type: 'upgraded', id: action.id });
     case 'END_DAY': {
       if (state.phase === 'closed') return reject(state, action, 'dayClosed');
       const { state: closed, summary } = closeDay(state);

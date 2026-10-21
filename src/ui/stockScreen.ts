@@ -4,7 +4,7 @@ import { STOCK_TEXT, fill } from '../config/strings';
 import { getTea } from '../config/teas';
 import { getTopping } from '../config/toppings';
 import { formatMoney } from '../core/economy';
-import { isUnlocked } from '../core/inventory';
+import { isUnlocked, restockPrice } from '../core/inventory';
 import type { ShopState } from '../core/types';
 import { esc } from './modal';
 
@@ -19,7 +19,7 @@ function isAvailable(state: ShopState, stockId: string): boolean {
 
 /** Khóa để biết khi nào cần vẽ lại màn Kho (tránh vẽ lại mỗi khung hình). */
 export function stockScreenKey(state: ShopState): string {
-  return JSON.stringify([state.cash, state.stock, state.unlockedTeas, state.unlockedToppings, state.day]);
+  return JSON.stringify([state.cash, state.stock, state.unlockedTeas, state.unlockedToppings, state.day, state.upgrades]);
 }
 
 export function renderStockScreen(state: ShopState): string {
@@ -27,13 +27,14 @@ export function renderStockScreen(state: ShopState): string {
     .map((s) => {
       const count = state.stock[s.id] ?? 0;
       const level = count === 0 ? 'out' : count <= LOW_STOCK_AT ? 'low' : '';
-      const canBuy = state.cash >= s.packPrice;
+      const price = restockPrice(state, s.id);
+      const canBuy = state.cash >= price;
       return `
         <li class="stock-row ${level}">
           <span class="stock-name">${esc(s.name)}</span>
           <span class="stock-count">${esc(fill(STOCK_TEXT.inStock, { n: count }))}</span>
           <button type="button" data-action="restock" data-item="${esc(s.id)}" ${canBuy ? '' : 'disabled'}>
-            ${esc(fill(STOCK_TEXT.restock, { n: s.packSize, price: formatMoney(s.packPrice) }))}
+            ${esc(fill(STOCK_TEXT.restock, { n: s.packSize, price: formatMoney(price) }))}
           </button>
         </li>`;
     })

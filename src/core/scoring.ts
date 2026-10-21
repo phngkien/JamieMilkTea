@@ -1,8 +1,8 @@
 // Chấm điểm ly 0–100 theo CLAUDE.md mục 12. Trọng số nằm trong config/scoring.
 import { ICE_STEPS, SIZES, SUGAR_STEPS } from '../config/cup';
-import { SCORING } from '../config/scoring';
+import { SCORING, STATION_SCORING } from '../config/scoring';
 import { iceOf, sugarOf } from './brewing';
-import type { CupScore, CupSpec, CupState, Size, ToppingPortion } from './types';
+import type { CupScore, CupSpec, CupState, Size, StationScores, ToppingPortion } from './types';
 
 /**
  * Độ chính xác khi rót (0..1).
@@ -68,4 +68,25 @@ export function scoreCup(spec: CupSpec, cup: CupState, patience: number): CupSco
   if (capped) total = Math.min(total, SCORING.wrongBaseCap);
   total = Math.round(total);
   return { total, stars: starsFromScore(total), capped, parts };
+}
+
+/**
+ * Điểm cá nhân 0–100 của từng trạm cho một ly đã giao (CLAUDE.md mục 12).
+ * `customerId` là khách nhận ly, `patience` là kiên nhẫn còn lại lúc giao.
+ */
+export function stationScores(spec: CupSpec, cup: CupState, customerId: string, patience: number): StationScores {
+  const W = STATION_SCORING;
+  const teaOk = spec.tea === cup.tea;
+  const tea =
+    (spec.size === cup.size ? W.tea.size : 0) +
+    (teaOk ? W.tea.teaType + W.tea.pour * pourAccuracy(cup.fill, cup.size) : 0);
+  const topping =
+    W.topping.sugar * stepScore(SUGAR_STEPS.indexOf(spec.sugar), SUGAR_STEPS.indexOf(sugarOf(cup))) +
+    W.topping.ice * stepScore(ICE_STEPS.indexOf(spec.ice), ICE_STEPS.indexOf(iceOf(cup))) +
+    W.topping.topping * toppingAccuracy(spec.toppings, cup.toppings);
+  // Ly làm cho khách đang ở quầy lúc lấy cốc: giao cho đúng người đó mới được trọn điểm
+  const rightCustomer = cup.forCustomer === null || cup.forCustomer === customerId;
+  const cashier =
+    (rightCustomer ? W.cashier.rightCustomer : 0) + W.cashier.speed * Math.max(0, Math.min(1, patience));
+  return { tea: Math.round(tea), topping: Math.round(topping), cashier: Math.round(cashier) };
 }

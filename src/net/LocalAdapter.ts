@@ -29,7 +29,11 @@ export class LocalAdapter implements NetAdapter {
   }
 
   dispatch(action: Action): void {
-    this.apply([action]);
+    this.apply([action], SOLO_ID);
+  }
+
+  canSpend(): boolean {
+    return true;
   }
 
   subscribe(listener: StateListener): () => void {
@@ -73,10 +77,10 @@ export class LocalAdapter implements NetAdapter {
     this.emoteListeners.clear();
   }
 
-  private apply(actions: Action[]): void {
+  private apply(actions: Action[], actor: string | null = null): void {
     const events: GameEvent[] = [];
     for (const action of actions) {
-      const result = reduce(this.state, action);
+      const result = reduce(this.state, action, actor);
       this.state = result.state;
       events.push(...result.events);
     }

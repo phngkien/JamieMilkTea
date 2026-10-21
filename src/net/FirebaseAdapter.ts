@@ -25,7 +25,7 @@ import {
 import { ROOM } from '../config/room';
 import { planHostActions } from '../core/day';
 import { reduce } from '../core/reducer';
-import { canPerform, stationOwners, type StationOwners } from '../core/stations';
+import { canPerform, canSpend, stationOwners, type SpendRule, type StationOwners } from '../core/stations';
 import type { Action, GameEvent, ShopState, Station } from '../core/types';
 import { MAX_TICK_MS } from './LocalAdapter';
 import type { EmoteKind, LivePour, NetAdapter, PlayerInfo, RoomInfo, StateListener } from './NetAdapter';
@@ -69,6 +69,8 @@ export class FirebaseAdapter implements NetAdapter {
   private hostUid: string;
   private ownerUid: string;
   private status: RoomInfo['status'] = 'lobby';
+  /** Host cho phép người giữ trạm Kho chi tiền két. */
+  private allowSpending = false;
   private connected = false;
   private live = new Map<string, LivePour>();
 
@@ -123,6 +125,20 @@ export class FirebaseAdapter implements NetAdapter {
     return this.players;
   }
 
+  private get spendRule(): SpendRule {
+    return { ownerUid: this.ownerUid, allowStock: this.allowSpending };
+  }
+
+  canSpend(): boolean {
+    return canSpend(this.owners, this.localId, this.spendRule);
+  }
+
+  /** Host bật / tắt quyền chi két cho trạm Kho. */
+  async setAllowSpending(on: boolean): Promise<void> {
+    if (!this.isHost) return;
+    await update(this.ref('meta'), { allowSpending: on });
+  }
+
   getRoomInfo(): RoomInfo {
     return {
       code: this.code,
@@ -131,6 +147,7 @@ export class FirebaseAdapter implements NetAdapter {
       ownerUid: this.ownerUid,
       players: this.players,
       connected: this.connected,
+      allowSpending: this.allowSpending,
     };
   }
 
@@ -146,7 +163,7 @@ export class FirebaseAdapter implements NetAdapter {
   }
 
   dispatch(action: Action): void {
-    const reason = canPerform(this.state, this.owners, this.localId, action, this.isHost);
+    const reason = canPerform(this.state, this.owners, this.localId, action, this.isHost, this.spendRule);
     if (reason) {
       this.emit([{ type: 'rejected', action: action.type, reason }]);
       return;
@@ -158,7 +175,7 @@ export class FirebaseAdapter implements NetAdapter {
     // Máy khác: áp dụng ngay cho mượt, rồi gửi cho host
     const seq = this.nextSeq++;
     this.pending.push({ seq, action });
-    const result = reduce(this.state, action);
+    const result = reduce(this.state, action, this.localId);
     this.state = result.state;
     this.emit(result.events);
     void push(this.ref('actions'), clean({ uid: this.localId, seq, action, t: serverTimestamp() }));
@@ -280,12 +297,18 @@ export class FirebaseAdapter implements NetAdapter {
     );
     this.unsubs.push(
       onValue(this.ref('meta'), (snap) => {
-        const meta = snap.val() as { hostUid?: string; ownerUid?: string; status?: string } | null;
+        const meta = snap.val() as {
+          hostUid?: string;
+          ownerUid?: string;
+          status?: string;
+          allowSpending?: boolean;
+        } | null;
         if (!meta) return;
         const wasHost = this.isHost;
         this.hostUid = meta.hostUid ?? this.hostUid;
         this.ownerUid = meta.ownerUid ?? this.ownerUid;
         this.status = meta.status === 'playing' ? 'playing' : 'lobby';
+        this.allowSpending = meta.allowSpending === true;
         this.owners = stationOwners(this.players, this.hostUid);
         if (!wasHost && this.isHost) this.becomeHost();
         if (wasHost && !this.isHost) this.stopHosting();
@@ -342,7 +365,7 @@ export class FirebaseAdapter implements NetAdapter {
     const ack = payload.acks?.[this.localId] ?? 0;
     this.pending = this.pending.filter((p) => p.seq > ack);
     let state = decoded;
-    for (const p of this.pending) state = reduce(state, p.action).state;
+    for (const p of this.pending) state = reduce(state, p.action, this.localId).state;
     this.state = state;
     // Sự kiện từ host: bỏ những gì chính mình đã thấy trước (trừ khi host từ chối thao tác của mình)
     const events: GameEvent[] = [];
@@ -392,12 +415,12 @@ export class FirebaseAdapter implements NetAdapter {
 
   /** Host áp dụng một thao tác (của mình hoặc người khác) sau khi kiểm tra quyền. */
   private hostApply(uid: string, action: Action, seq?: number): void {
-    const reason = canPerform(this.state, this.owners, uid, action, uid === this.localId);
+    const reason = canPerform(this.state, this.owners, uid, action, uid === this.localId, this.spendRule);
     let events: GameEvent[];
     if (reason) {
       events = [{ type: 'rejected', action: action.type, reason }];
     } else {
-      const result = reduce(this.state, action);
+      const result = reduce(this.state, action, uid);
       this.state = result.state;
       events = result.events;
     }
