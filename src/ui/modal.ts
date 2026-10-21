@@ -1,12 +1,14 @@
 // Khung cửa sổ nổi (DOM) dùng chung cho màn Kho, Tổng kết ngày, Cài đặt. Mỗi lúc chỉ mở một màn.
 
-export type ModalName = 'stock' | 'summary' | 'settings';
+export type ModalName = 'stock' | 'summary' | 'settings' | 'room';
 
 export class Modal {
   private root: HTMLElement;
   private panel: HTMLElement;
   private clickHandler: ((action: string, data: DOMStringMap) => void) | null = null;
   current: ModalName | null = null;
+  /** Phân biệt các màn con trong cùng một loại (ví dụ phòng chờ trong 'room'). */
+  tag = '';
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -21,8 +23,9 @@ export class Modal {
     });
   }
 
-  open(name: ModalName, html: string, onAction: (action: string, data: DOMStringMap) => void): void {
+  open(name: ModalName, html: string, onAction: (action: string, data: DOMStringMap) => void, tag = ''): void {
     this.current = name;
+    this.tag = tag;
     this.clickHandler = onAction;
     this.panel.className = `modal-panel modal-${name}`;
     this.panel.innerHTML = html;

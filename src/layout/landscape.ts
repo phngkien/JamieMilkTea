@@ -53,6 +53,12 @@ export function landscapeLayout(): ShopLayout {
     decor: { x: 330, y: 168, w: 260, h: 82 },
     counterStrip: { x: 0, y: 545, w: 720, h: 22 },
     worker: { x: 600, y: 165, w: 110, h: 86 },
+    workerSpots: {
+      cashier: { x: 600, y: 165, w: 110, h: 86 },
+      tea: { x: 190, y: 540, w: 110, h: 86 },
+      topping: { x: 1530, y: 150, w: 110, h: 86 },
+      stock: { x: 1700, y: 150, w: 110, h: 86 },
+    },
     sections: { tea: 0, brew: 0, topping: 0 },
   };
 }

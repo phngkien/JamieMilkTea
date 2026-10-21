@@ -34,6 +34,10 @@ export class Cup extends Phaser.GameObjects.Container {
   private toppingCount = 0;
   private lastStatic = '';
   private sealedShown = false;
+  /** Hệ số thu nhỏ (bảng có nhiều ly khi chơi chung). */
+  private cupScaleFactor = 1;
+  private ring: Phaser.GameObjects.Graphics;
+  private ringColor: number | null = null;
 
   constructor(scene: Phaser.Scene, L: ShopLayout, x: number, y: number, cup: CupState, textScale: number) {
     super(scene, x, y);
@@ -42,6 +46,9 @@ export class Cup extends Phaser.GameObjects.Container {
     this.s = cupScale(L, cup.size);
     this.bodyH = L.cupHeight[cup.size];
     const originY = CUP_BOTTOM_Y / CUP_H;
+    // Viền màu dưới đáy ly: cùng màu với khách mà ly được làm cho
+    this.ring = scene.add.graphics();
+    this.add(this.ring);
     this.add(scene.add.image(0, 0, cupBackArt(L, cup.size).key).setOrigin(0.5, originY));
     this.toppingLayer = scene.add.container(0, 0);
     this.liquid = scene.add.graphics();
@@ -75,7 +82,30 @@ export class Cup extends Phaser.GameObjects.Container {
 
   placeAt(x: number, y: number): void {
     this.setPosition(x, y);
-    this.hit.setPosition(x, y - this.bodyH / 2);
+    this.hit.setPosition(x, y - (this.bodyH * this.cupScaleFactor) / 2);
+  }
+
+  /** Thu nhỏ / phóng to ly (vùng chạm đổi theo). */
+  setCupScale(s: number): void {
+    if (s === this.cupScaleFactor) return;
+    this.cupScaleFactor = s;
+    this.setScale(s);
+    const topW = this.halfAt(1) * 2;
+    this.hit.setSize((topW + 40) * s, (this.bodyH + 40) * s);
+    if (this.hit.input?.hitArea instanceof Phaser.Geom.Rectangle) this.hit.input.hitArea.setSize((topW + 40) * s, (this.bodyH + 40) * s);
+    this.placeAt(this.x, this.y);
+  }
+
+  /** Viền màu theo khách (null = không viền). */
+  setOrderColor(color: number | null): void {
+    if (color === this.ringColor) return;
+    this.ringColor = color;
+    this.ring.clear();
+    if (color === null) return;
+    this.ring.fillStyle(color, 0.9);
+    this.ring.fillEllipse(0, 2, this.halfAt(0) * 2 + 30, 26);
+    this.ring.lineStyle(3, hex(PALETTE.outline), 1);
+    this.ring.strokeEllipse(0, 2, this.halfAt(0) * 2 + 30, 26);
   }
 
   /** Hình thang thân ly từ t0 tới t1 (toạ độ trong container). */

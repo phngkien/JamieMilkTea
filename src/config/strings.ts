@@ -179,6 +179,77 @@ export const TUTORIAL_TEXT = {
   ruined: 'Ly bị tràn rồi: kéo ly vào thùng rác rồi làm lại nhé',
 };
 
+/** Chơi cùng bạn bè (phòng nhiều người). */
+export const ROOM_TEXT = {
+  invite: 'Mời bạn',
+  menuTitle: 'Chơi cùng bạn bè',
+  menuHint: 'Tối đa 4 người, ở xa hay ở gần đều được. Cần có mạng.',
+  create: 'Mở tiệm cho bạn bè',
+  join: 'Vào tiệm bạn',
+  yourName: 'Tên của bạn',
+  namePlaceholder: 'Ví dụ: Jamie',
+  code: 'Mã phòng',
+  codePlaceholder: 'Ví dụ: ABC234',
+  createButton: 'Tạo phòng',
+  joinButton: 'Vào tiệm',
+  back: 'Quay lại',
+  connecting: 'Đang kết nối...',
+  lobbyTitle: 'Tiệm của {owner}',
+  shareHint: 'Gửi mã hoặc link này cho bạn bè:',
+  copy: 'Sao chép lời mời',
+  copied: 'Đã sao chép lời mời!',
+  inviteMessage: "Vào chơi Jamie's Milk Tea với mình nhé! Mã phòng: {code}\n{link}",
+  players: 'Người trong tiệm ({n}/4)',
+  chooseStation: 'Chọn trạm của bạn',
+  stationTaken: 'của {name}',
+  stationFree: 'Còn trống',
+  stationMine: 'Trạm của bạn',
+  mergedWith: 'Đang gộp: {list}',
+  open: 'Mở cửa!',
+  waitHost: 'Chờ chủ phòng mở cửa...',
+  waitNextDay: 'Chờ chủ phòng sang ngày mới...',
+  leave: 'Rời phòng',
+  close: 'Đóng',
+  host: 'chủ phòng',
+  offline: 'mất mạng',
+  you: 'bạn',
+  errNotFound: 'Không tìm thấy tiệm có mã này',
+  errFull: 'Tiệm đã đủ người',
+  errOffline: 'Không kết nối được. Kiểm tra mạng rồi thử lại nhé',
+  errName: 'Nhập tên của bạn trước nhé',
+  errCode: 'Mã phòng gồm 6 ký tự',
+  errCreate: 'Không tạo được phòng, thử lại nhé',
+  joined: '{name} đã vào tiệm',
+  left: '{name} đã rời tiệm',
+  newHost: '{name} giờ là chủ phòng',
+  youAreHost: 'Bạn giờ là chủ phòng',
+  pass: 'Chuyền →',
+  notYours: 'Đây là trạm {station} của {name}',
+  lostConnection: 'Mất kết nối, đang thử lại...',
+  backOnline: 'Đã kết nối lại',
+};
+
+export const STATION_NAMES: Record<'cashier' | 'tea' | 'topping' | 'stock', string> = {
+  cashier: 'Thu ngân',
+  tea: 'Quầy trà',
+  topping: 'Kệ topping',
+  stock: 'Kho & quản lý',
+};
+
+export const STATION_JOBS: Record<'cashier' | 'tea' | 'topping' | 'stock', string> = {
+  cashier: 'Ép nắp, giao ly cho khách',
+  tea: 'Lấy cốc, rót trà',
+  topping: 'Đường, đá, topping',
+  stock: 'Nhập hàng, mở khóa món',
+};
+
+export const EMOTE_TEXT: Record<'heart' | 'smile' | 'thumb' | 'hurry', string> = {
+  heart: '❤️',
+  smile: '😄',
+  thumb: '👍',
+  hurry: 'Nhanh lên!',
+};
+
 /** Thay {key} trong mẫu câu bằng giá trị. */
 export function fill(template: string, vars: Record<string, string | number>): string {
   return template.replace(/\{(\w+)\}/g, (match, key: string) =>

@@ -1,5 +1,5 @@
 // Thanh HUD cố định phía trên: cài đặt, ngày + đồng hồ, tên tiệm + tiền két, sao + số lượt đánh giá.
-import { SHOP_NAME, STOCK_TEXT, UI_TEXT, fill } from '../config/strings';
+import { ROOM_TEXT, SHOP_NAME, STOCK_TEXT, UI_TEXT, fill } from '../config/strings';
 import { clockText } from '../core/day';
 import { formatMoney, formatRating } from '../core/economy';
 import type { ShopState } from '../core/types';
@@ -14,10 +14,19 @@ export class Hud {
 
   private sound: HTMLButtonElement;
 
-  constructor(root: HTMLElement, onSettings: () => void, onStock: () => void, onSound: () => void) {
+  private invite: HTMLButtonElement;
+
+  constructor(
+    root: HTMLElement,
+    onSettings: () => void,
+    onStock: () => void,
+    onSound: () => void,
+    onInvite: () => void,
+  ) {
     root.innerHTML = `
       <div class="hud-left">
         <button type="button" class="hud-btn hud-settings" aria-label="Cài đặt">⚙</button>
+        <button type="button" class="hud-btn hud-invite" aria-label="Mời bạn"></button>
         <button type="button" class="hud-btn hud-stock"></button>
         <div class="hud-daybox">
           <div class="hud-day"></div>
@@ -47,6 +56,9 @@ export class Hud {
     root.querySelector('.hud-settings')!.addEventListener('click', onSettings);
     this.sound = root.querySelector<HTMLButtonElement>('.hud-sound')!;
     this.sound.addEventListener('click', onSound);
+    this.invite = root.querySelector<HTMLButtonElement>('.hud-invite')!;
+    this.invite.addEventListener('click', onInvite);
+    this.setRoom(null);
   }
 
   update(state: ShopState): void {
@@ -65,6 +77,13 @@ export class Hud {
     this.rating.textContent = state.ratingCount
       ? fill(UI_TEXT.rating, { avg: formatRating(state.ratingSum, state.ratingCount), count: state.ratingCount })
       : UI_TEXT.noRating;
+  }
+
+  /** Nút mời bạn: chơi một mình hiện 👥, đang trong phòng hiện mã phòng. */
+  setRoom(code: string | null): void {
+    this.invite.textContent = code ?? '👥';
+    this.invite.classList.toggle('in-room', code !== null);
+    this.invite.title = code ? code : ROOM_TEXT.invite;
   }
 
   /** Biểu tượng loa: bật / tắt tiếng. */

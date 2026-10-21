@@ -18,6 +18,8 @@ export interface Settings {
   musicOn: boolean;
   /** Giảm chuyển động (bớt hình động). */
   reducedMotion: boolean;
+  /** Tên hiển thị khi chơi chung. */
+  playerName: string;
 }
 
 /** Phần "tiệm" được lưu. Khách đang chờ và ly đang làm dở không lưu. */
@@ -43,7 +45,7 @@ export interface SaveData {
 }
 
 export function defaultSettings(): Settings {
-  return { tutorialDone: false, muted: false, musicOn: true, reducedMotion: false };
+  return { tutorialDone: false, muted: false, musicOn: true, reducedMotion: false, playerName: '' };
 }
 
 export function createSave(state: ShopState, settings: Settings, now = Date.now()): SaveData {
@@ -152,6 +154,7 @@ function normalize(data: Record<string, unknown>, version: number): SaveData | n
       ...(typeof settings.muted === 'boolean' ? { muted: settings.muted } : {}),
       ...(typeof settings.musicOn === 'boolean' ? { musicOn: settings.musicOn } : {}),
       ...(typeof settings.reducedMotion === 'boolean' ? { reducedMotion: settings.reducedMotion } : {}),
+      ...(typeof settings.playerName === 'string' ? { playerName: settings.playerName.slice(0, 16) } : {}),
     },
   };
 }

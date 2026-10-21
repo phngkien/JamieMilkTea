@@ -30,7 +30,7 @@ import {
 import { cloudSvg } from '../art/scenery';
 import { crop } from '../art/svg';
 import { TRAY_H, lockSvg, toppingTraySvg } from '../art/toppingTray';
-import { CHARACTERS, STAFF } from '../config/characters';
+import { APRON_COLORS, CHARACTERS, STAFF } from '../config/characters';
 import { TEAS, getTea } from '../config/teas';
 import { TOPPINGS, getTopping } from '../config/toppings';
 import type { ShopState, Size } from '../core/types';
@@ -196,8 +196,18 @@ export function textureRequests(L: ShopLayout, state: ShopState): TextureRequest
     reqs.push(...characterRequests(L, L.customer, d));
     reqs.push({ ...avatarArt(L, d.id), svg: characterAvatarSvg(d) });
   }
-  reqs.push(...characterRequests(L, L.worker, STAFF));
+  for (const d of staffVariants()) reqs.push(...characterRequests(L, L.worker, d));
   return reqs;
+}
+
+/** Nhân viên với từng màu tạp dề (mỗi người chơi một màu). */
+export function staffVariants(): CharacterDef[] {
+  return APRON_COLORS.map((color, i) => ({ ...STAFF, id: `staff${i}`, accent: color }));
+}
+
+export function staffFor(color: string): CharacterDef {
+  const all = staffVariants();
+  return all[Math.max(0, APRON_COLORS.indexOf(color))] ?? all[0];
 }
 
 /** Màu trà / topping (giữ một chỗ để entity khỏi import config lung tung). */

@@ -121,3 +121,24 @@ describe('nén state gửi qua Firebase', () => {
     expect(decodeState(null)).toBeNull();
   });
 });
+
+describe('mã phòng', () => {
+  it('6 ký tự, không có O/0/I/1', async () => {
+    const { randomCode, isValidCode } = await import('../src/net/roomCode');
+    for (let i = 0; i < 200; i++) {
+      const code = randomCode();
+      expect(code).toHaveLength(6);
+      expect(code).not.toMatch(/[O0I1]/);
+      expect(isValidCode(code)).toBe(true);
+    }
+  });
+
+  it('chuẩn hóa mã gõ tay và đọc mã từ link mời', async () => {
+    const { normalizeCode, codeFromHash, isValidCode } = await import('../src/net/roomCode');
+    expect(normalizeCode(' abc-234 ')).toBe('ABC234');
+    expect(codeFromHash('#join-abc234')).toBe('ABC234');
+    expect(codeFromHash('#join-ABC1O0')).toBeNull();
+    expect(codeFromHash('#other')).toBeNull();
+    expect(isValidCode('ABC23')).toBe(false);
+  });
+});

@@ -1,11 +1,11 @@
 // Lớp DOM phủ đúng lên vùng canvas: HUD, thanh nút, thông báo, hướng dẫn và các màn Kho / Tổng kết / Cài đặt.
 // Kích thước chữ/nút tính theo đơn vị khung (--u).
 import { LOW_STOCK_AT, STOCK, getStockDef, stockIdOfTea, stockIdOfTopping } from '../config/inventory';
-import { SETTINGS_TEXT, STOCK_TEXT, fill } from '../config/strings';
+import { EMOTE_TEXT, ROOM_TEXT, SETTINGS_TEXT, STOCK_TEXT, fill } from '../config/strings';
 import type { GameEvent, ShopState } from '../core/types';
 import type { ShopLayout } from '../layout';
 import type { Sfx } from '../audio/Sfx';
-import type { NetAdapter } from '../net/NetAdapter';
+import type { EmoteKind, NetAdapter } from '../net/NetAdapter';
 import type { Settings } from '../save/schema';
 import { Hud } from './hud';
 import { Modal } from './modal';
@@ -40,6 +40,11 @@ export class Overlay {
   onJump: (section: Section) => void = () => {};
   /** Do scene gán: bỏ qua hướng dẫn. */
   onSkipTutorial: () => void = () => {};
+  /** Do main gán: bấm nút Mời bạn. */
+  onInvite: () => void = () => {};
+  private unbind: (() => void) | null = null;
+  private clickSoundBound = false;
+  private emoteBar: HTMLElement;
 
   private adapter: NetAdapter | null = null;
   private hooks: OverlayHooks | null = null;
@@ -53,24 +58,50 @@ export class Overlay {
       () => this.openSettings(),
       () => this.openStock(),
       () => this.toggleSound(),
+      () => this.onInvite(),
     );
     this.nav = new QuickNav(root.querySelector('#quicknav')!, (s) => this.onJump(s), () => this.openStock());
     this.toast = new Toast(root.querySelector('#toast')!);
     this.tutorial = new TutorialCard(root.querySelector('#tutorial')!, () => this.onSkipTutorial());
     this.modal = new Modal(root.querySelector('#modal')!);
+    this.emoteBar = root.querySelector('#emotes')!;
+    this.emoteBar.innerHTML = (Object.keys(EMOTE_TEXT) as EmoteKind[])
+      .map((k) => `<button type="button" data-emote="${k}" class="emote-${k}">${EMOTE_TEXT[k]}</button>`)
+      .join('');
+    this.emoteBar.addEventListener('click', (e) => {
+      const kind = (e.target as HTMLElement).closest<HTMLElement>('[data-emote]')?.dataset.emote as EmoteKind | undefined;
+      if (kind) this.adapter?.sendEmote(kind);
+    });
+    this.setRoomMode(false);
+  }
+
+  /** Đang chơi chung: hiện thanh biểu cảm. */
+  setRoomMode(on: boolean): void {
+    this.emoteBar.hidden = !on;
+    if (!on) this.hud.setRoom(null);
+  }
+
+  setRoomBadge(code: string): void {
+    this.hud.setRoom(code);
   }
 
   /** Nối overlay với logic game: nghe state để cập nhật HUD, Kho, cảnh báo, tổng kết. */
   bind(adapter: NetAdapter, hooks: OverlayHooks): void {
+    // Đổi adapter (vào / rời phòng): bỏ nghe adapter cũ
+    this.unbind?.();
     this.adapter = adapter;
     this.hooks = hooks;
-    adapter.subscribe((state, events) => this.onState(state, events));
+    this.prevStock = null;
+    this.unbind = adapter.subscribe((state, events) => this.onState(state, events));
     this.onState(adapter.getState(), []);
     this.hud.setSound(!hooks.getSettings().muted);
-    // Tiếng "tách" nhẹ khi bấm nút trên giao diện
-    this.root.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).closest('button')) hooks.sfx.click();
-    });
+    if (!this.clickSoundBound) {
+      this.clickSoundBound = true;
+      // Tiếng "tách" nhẹ khi bấm nút trên giao diện
+      this.root.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).closest('button')) this.hooks?.sfx.click();
+      });
+    }
   }
 
   private toggleSound(): void {
@@ -90,12 +121,16 @@ export class Overlay {
         this.toast.show(fill(STOCK_TEXT.unlocked, { name: getStockDef(id).name }));
       } else if (e.type === 'dayEnded') {
         this.tutorial.hide();
-        this.modal.open('summary', renderSummary(e.summary), (action) => {
+        // Chơi chung: chỉ chủ phòng bấm sang ngày mới, người khác chờ
+        const canNext = this.adapter?.isHost ?? true;
+        this.modal.open('summary', renderSummary(e.summary, canNext ? null : ROOM_TEXT.waitNextDay), (action) => {
           if (action === 'next') {
             this.modal.close();
             this.adapter?.dispatch({ type: 'START_DAY' });
           }
         });
+      } else if (e.type === 'dayStarted' && this.modal.current === 'summary') {
+        this.modal.close();
       }
     }
     this.checkStockWarnings(state);

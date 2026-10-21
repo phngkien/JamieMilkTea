@@ -59,8 +59,10 @@ export interface ShopLayout {
   decor: Rect;
   /** Quầy gỗ ngăn giữa khách và tiệm. */
   counterStrip: Rect;
-  /** Nhân viên (người chơi) đứng ở đây. */
+  /** Nhân viên (người chơi) đứng ở đây khi chơi một mình. */
   worker: Rect;
+  /** Chơi chung: chỗ đứng của nhân viên ở từng trạm (cùng cỡ với worker). */
+  workerSpots: { cashier: Rect; tea: Rect; topping: Rect; stock: Rect };
   /** Vị trí cuộn (scrollY) cho các nút nhảy nhanh. */
   sections: { tea: number; brew: number; topping: number };
 }

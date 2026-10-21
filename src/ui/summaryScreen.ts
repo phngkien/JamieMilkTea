@@ -11,7 +11,8 @@ function line(label: string, value: string, cls = ''): string {
   return `<div class="sum-line ${cls}"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
 }
 
-export function renderSummary(s: DaySummary): string {
+/** `waitText`: chơi chung mà mình không phải chủ phòng → hiện chữ chờ thay cho nút sang ngày mới. */
+export function renderSummary(s: DaySummary, waitText: string | null = null): string {
   const costs = s.ingredients + s.waste + s.rent;
   const stars = s.ratingCount ? formatRating(s.ratingSum, s.ratingCount) : '—';
   return `
@@ -44,6 +45,10 @@ export function renderSummary(s: DaySummary): string {
       </section>
     </div>
     <footer class="modal-foot">
-      <button type="button" class="primary next-day" data-action="next">${esc(fill(SUMMARY_TEXT.next, { day: s.day + 1 }))}</button>
+      ${
+        waitText
+          ? `<p class="hint center">${esc(waitText)}</p>`
+          : `<button type="button" class="primary next-day" data-action="next">${esc(fill(SUMMARY_TEXT.next, { day: s.day + 1 }))}</button>`
+      }
     </footer>`;
 }

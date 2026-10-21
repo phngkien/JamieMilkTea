@@ -681,3 +681,204 @@ body {
   transition: none !important;
   animation: none !important;
 }
+
+/* ───── Chơi cùng bạn bè ───── */
+.hud-invite {
+  font-size: calc(var(--u) * 44);
+}
+
+.hud-invite.in-room {
+  font-size: calc(var(--u) * 34);
+  letter-spacing: calc(var(--u) * 2);
+  background: var(--pink-light);
+}
+
+.modal-panel button.big {
+  min-height: calc(var(--u) * 140);
+  font-size: calc(var(--u) * 46);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 8);
+  font-weight: 800;
+  font-size: calc(var(--u) * 34);
+}
+
+.field input {
+  font: inherit;
+  font-family: 'Baloo 2', sans-serif;
+  font-size: calc(var(--u) * 48);
+  padding: calc(var(--u) * 14) calc(var(--u) * 24);
+  border: calc(var(--u) * 4) solid var(--outline);
+  border-radius: calc(var(--u) * 26);
+  background: #fff;
+  color: var(--text);
+  user-select: text;
+  -webkit-user-select: text;
+  touch-action: manipulation;
+}
+
+#room-code {
+  text-transform: uppercase;
+  letter-spacing: calc(var(--u) * 8);
+}
+
+.modal-panel .error {
+  margin: 0;
+  color: var(--danger);
+  font-weight: 800;
+  font-size: calc(var(--u) * 34);
+}
+
+.hint.center {
+  flex: 1;
+  text-align: center;
+  align-self: center;
+  margin: 0;
+}
+
+.room-code {
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: calc(var(--u) * 110);
+  letter-spacing: calc(var(--u) * 14);
+  text-align: center;
+  color: var(--pink);
+  -webkit-text-stroke: calc(var(--u) * 2) var(--outline);
+  line-height: 1.1;
+}
+
+.room-link {
+  margin: 0 0 calc(var(--u) * 12);
+  text-align: center;
+  font-size: calc(var(--u) * 26);
+  word-break: break-all;
+  opacity: 0.75;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.modal-panel button.copy {
+  width: 100%;
+  background: var(--gold);
+}
+
+.player-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.player {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: calc(var(--u) * 12);
+  padding: calc(var(--u) * 12) calc(var(--u) * 18);
+  margin-bottom: calc(var(--u) * 10);
+  background: #fff;
+  border-radius: calc(var(--u) * 22);
+  font-size: calc(var(--u) * 36);
+}
+
+.player.off {
+  opacity: 0.5;
+}
+
+.player .dot {
+  width: calc(var(--u) * 30);
+  height: calc(var(--u) * 30);
+  border-radius: 50%;
+  border: calc(var(--u) * 3) solid var(--outline);
+}
+
+.player small {
+  font-size: calc(var(--u) * 28);
+  opacity: 0.75;
+}
+
+.player-station {
+  margin-left: auto;
+  font-size: calc(var(--u) * 28);
+  font-weight: 700;
+}
+
+.station-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: calc(var(--u) * 14);
+}
+
+.modal-panel button.station-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: calc(var(--u) * 4);
+  min-height: calc(var(--u) * 170);
+}
+
+.station-card b {
+  font-size: calc(var(--u) * 40);
+}
+
+.station-card span {
+  font-family: 'Nunito', sans-serif;
+  font-size: calc(var(--u) * 26);
+  font-weight: 700;
+}
+
+.station-card em {
+  font-style: normal;
+  font-size: calc(var(--u) * 28);
+  color: #3f9b54;
+}
+
+.modal-panel button.station-card.mine {
+  background: var(--pink);
+  color: #fff;
+}
+
+.station-card.mine em {
+  color: #fff;
+}
+
+.station-card.taken em {
+  color: var(--danger);
+}
+
+/* Thanh biểu cảm (chỉ hiện khi chơi chung) */
+#emotes {
+  position: absolute;
+  right: calc(var(--u) * 20);
+  bottom: calc(var(--u) * 190);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 12);
+}
+
+#emotes[hidden] {
+  display: none;
+}
+
+#ui[data-layout='landscape'] #emotes {
+  bottom: calc(var(--u) * 30);
+}
+
+#emotes button {
+  min-width: calc(var(--u) * 96);
+  height: calc(var(--u) * 96);
+  border: calc(var(--u) * 4) solid var(--outline);
+  border-radius: calc(var(--u) * 48);
+  background: #fff;
+  font-size: calc(var(--u) * 46);
+  padding: 0 calc(var(--u) * 12);
+}
+
+#emotes .emote-hurry {
+  font-size: calc(var(--u) * 28);
+  font-weight: 800;
+  background: var(--gold);
+}

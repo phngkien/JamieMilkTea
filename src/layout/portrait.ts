@@ -56,6 +56,12 @@ export function portraitLayout(viewHeight: number): ShopLayout {
     decor: { x: 420, y: 262, w: 420, h: 98 },
     counterStrip: { x: 0, y: 700, w: W, h: 30 },
     worker: { x: 900, y: 252, w: 150, h: 112 },
+    workerSpots: {
+      cashier: { x: 900, y: 252, w: 150, h: 112 },
+      tea: { x: 330, y: 682, w: 150, h: 112 },
+      topping: { x: 330, y: 1990, w: 150, h: 112 },
+      stock: { x: 880, y: 1990, w: 150, h: 112 },
+    },
     sections: {
       tea: 0,
       brew: Math.min(maxScroll, 1140 - HUD - 10),
