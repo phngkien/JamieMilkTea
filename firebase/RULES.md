@@ -15,8 +15,8 @@ Cấu hình Firebase trong game là công khai, ai cũng xem được. Thứ gi�
 | `rooms/{mã}/actions/{id}` | Thành viên | Thành viên **gửi thao tác của chính mình** (không giả danh người khác được); chỉ host được xóa sau khi xử lý | Phải có `uid`, `seq`, `action` |
 | `rooms/{mã}/emotes/{id}` | Thành viên | Thành viên gửi biểu cảm của mình; chỉ người gửi được xóa | Chỉ 4 loại: tim, cười, like, "nhanh lên" |
 | `userRooms/{uid}` | Chỉ chính người đó | Chỉ chính người đó (danh sách phòng mình đã tạo, để tự dọn) | — |
-| `shops/{uid chủ tiệm}` | Chủ tiệm; host của phòng đang gắn với tiệm | **Chủ tiệm**, hoặc **host của phòng** mà phòng đó do chính chủ tiệm mở (`meta/ownerUid` = chủ tiệm) | `ownerUid` không đổi được; ngày chỉ tăng tối đa 7 mỗi lần ghi (hoặc về 1 khi chơi lại từ đầu); **két thay đổi tối đa 5.000k mỗi lần ghi**; mỗi nguyên liệu 0–100.000 và tăng tối đa 5.000 mỗi lần; tên tiệm 1–24 ký tự; không cho thêm trường lạ; không ai xóa được tiệm |
-| `profiles/{uid}` | **Chỉ chính người đó** (trong đó có mã tài khoản) | **Chỉ chính người đó** | Tiền tip 0–1.000.000k và tăng tối đa 2.000k mỗi lần ghi; tên ≤ 16 ký tự; outfit ≤ 24 ký tự; không cho thêm trường lạ |
+| `shops/{uid chủ tiệm}` | Chủ tiệm; host của phòng đang gắn với tiệm | **Chủ tiệm**, hoặc **host của phòng** mà phòng đó do chính chủ tiệm mở (`meta/ownerUid` = chủ tiệm) | `ownerUid` không đổi được; ngày chỉ tăng tối đa 7 mỗi lần ghi (hoặc về 1 khi chơi lại từ đầu); **két thay đổi tối đa 5.000k mỗi lần ghi**; mỗi nguyên liệu 0–100.000 và tăng tối đa 5.000 mỗi lần; tên tiệm 1–24 ký tự; bảng thành tích (`fame`): tên ≤ 16 ký tự, các số không âm; không cho thêm trường lạ; không ai xóa được tiệm |
+| `profiles/{uid}` | **Chỉ chính người đó** (trong đó có mã tài khoản) | **Chỉ chính người đó** | Tiền tip 0–1.000.000k và tăng tối đa 2.000k mỗi lần ghi; tên ≤ 16 ký tự; outfit ≤ 24 ký tự; số lần Xuất sắc và chuỗi dài nhất là số không âm; không cho thêm trường lạ |
 
 Những gì **không ai làm được**:
 - Đọc phòng của người khác khi không phải thành viên.

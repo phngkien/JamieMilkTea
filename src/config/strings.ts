@@ -145,6 +145,36 @@ export const SUMMARY_TEXT = {
   closing: 'Hết giờ! Phục vụ nốt khách còn lại rồi đóng cửa nhé',
 };
 
+/** Bảng xếp hạng cuối ngày và bảng thành tích (CLAUDE.md mục 12). */
+export const RANK_TEXT = {
+  title: 'Bảng xếp hạng hôm nay',
+  soloTitle: 'Thành tích hôm nay',
+  you: '(bạn)',
+  points: '{n} điểm',
+  cups: '{n} ly',
+  streakShort: '🔥 {n}',
+  excellentIsYou: 'Bạn là Nhân viên xuất sắc hôm nay! 👑',
+  excellentIs: '{name} là Nhân viên xuất sắc hôm nay! 👑',
+  noExcellent: 'Làm từ {n} ly trở lên để được xét Nhân viên xuất sắc.',
+  soloHint: 'Chơi chung với bạn bè để tranh danh hiệu Nhân viên xuất sắc nhé!',
+  legend: 'Điểm = trung bình điểm ở trạm mình làm · 🔥 = chuỗi ly hoàn hảo liên tiếp (từ {n} điểm)',
+  fameTitle: 'Bảng thành tích của tiệm',
+  fameEmpty: 'Chưa có ai. Làm xong một ngày để ghi danh!',
+  fameExcellent: 'Xuất sắc nhiều nhất',
+  fameStreak: 'Chuỗi hoàn hảo dài nhất',
+  fameBestAt: 'Giỏi nhất {station}',
+  fameTimes: '{n} lần',
+  fameCups: '{n} ly liên tiếp',
+  fameAvg: '{n} điểm',
+  fameNobody: 'chưa có ai (cần {n} ly ở trạm này)',
+  fameDays: '{n} ngày công',
+  myTitle: 'Thành tích của bạn',
+  myExcellent: '👑 Nhân viên xuất sắc: {n} lần',
+  myStreak: '🔥 Chuỗi hoàn hảo dài nhất: {n} ly',
+  myStation: '{station}: {cups} ly · trung bình {avg} điểm',
+  myNone: '{station}: chưa làm ly nào',
+};
+
 /** Cài đặt và chơi lại. */
 export const SETTINGS_TEXT = {
   title: 'Cài đặt',

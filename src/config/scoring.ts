@@ -48,3 +48,17 @@ export const TIP = {
   /** Làm tròn tip tới bội số này (đồng). */
   roundTo: 500,
 };
+
+/** Bảng xếp hạng cuối ngày và bảng thành tích của tiệm (CLAUDE.md mục 12). */
+export const LEADERBOARD = {
+  /** Điểm cá nhân của một ly từ mức này trở lên thì tính là "hoàn hảo" (để đếm chuỗi). */
+  perfectScore: 90,
+  /** Phải làm tối thiểu bấy nhiêu ly mới được xét "Nhân viên xuất sắc". */
+  excellentMinCups: 3,
+  /** Cần ít nhất bấy nhiêu người làm trong ngày thì mới trao "Nhân viên xuất sắc" (chơi một mình thì không). */
+  excellentMinPlayers: 2,
+  /** Bảng thành tích của tiệm giữ tối đa bấy nhiêu người. */
+  fameLimit: 20,
+  /** Phải làm tối thiểu bấy nhiêu ly ở một trạm mới được xét "giỏi nhất trạm". */
+  stationMinCups: 10,
+};

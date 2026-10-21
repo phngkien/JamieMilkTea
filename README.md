@@ -102,6 +102,12 @@ Vuốt nền để cuộn; thanh dưới cùng có nút nhảy nhanh **Quầy tr
 - **Tủ đồ** (trong Tiệm của tôi): dùng tip mua outfit cho nhân viên của mình.
 - Chơi chung: chỉ **chủ tiệm** được chi tiền két. Chủ phòng có thể bật **"Cho trạm Kho chi tiền két"** trong phòng chờ. Chủ tiệm rời phòng thì phòng đóng, mọi người quay về tiệm của mình.
 
+**Bảng xếp hạng và thành tích:**
+
+- Bảng **"Hết ngày N"** có **Bảng xếp hạng hôm nay**: điểm trung bình của từng người (theo trạm mình làm), số ly, và 🔥 chuỗi ly hoàn hảo liên tiếp dài nhất (ly từ 90 điểm).
+- Chơi chung từ 2 người: ai điểm cao nhất (làm tối thiểu 3 ly) được 👑 **Nhân viên xuất sắc**. Số lần đạt danh hiệu lưu trong hồ sơ cá nhân.
+- **Tiệm của tôi → Bảng thành tích của tiệm**: ai Xuất sắc nhiều nhất, chuỗi dài nhất, giỏi nhất từng trạm (cần 10 ly ở trạm đó), số ngày công của mỗi người. Bên dưới là **Thành tích của bạn**.
+
 **Tài khoản:** mặc định là tài khoản khách (chỉ nằm trên trình duyệt đó). Vào **Tiệm của tôi → Tài khoản** để giữ tài khoản:
 
 - **Giữ bằng Google**: bấm nút, chọn Google. Trên máy khác cũng bấm nút đó, chọn đúng Google → game hỏi chuyển sang tài khoản đó → đồng ý.
@@ -121,6 +127,7 @@ Vuốt nền để cuộn; thanh dưới cùng có nút nhảy nhanh **Quầy tr
 | Nâng cấp, trang trí tiệm (giá, tác dụng) | `src/config/upgrades.ts` |
 | Outfit (giá bằng tip) | `src/config/outfits.ts` |
 | Tỉ lệ tip, điểm từng trạm | `src/config/scoring.ts` (`TIP`, `STATION_SCORING`) |
+| Mức ly hoàn hảo, điều kiện Nhân viên xuất sắc, bảng thành tích | `src/config/scoring.ts` (`LEADERBOARD`) |
 
 Mẹo khi chạy `npm run dev`: mở Console của trình duyệt (F12) và gõ `jamie.adapter.getState()` để xem toàn bộ số liệu đang chạy.
 

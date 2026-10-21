@@ -97,6 +97,7 @@ describe('đồng bộ profile: bản mới hơn thắng', () => {
 
 describe('cộng tip vào profile đúng một lần', () => {
   const day = (tips: number, cups = 1, score = 90): StaffDay => ({
+    ...emptyStaffDay(),
     tips,
     cups: { tea: cups, topping: 0, cashier: 0 },
     score: { tea: score * cups, topping: 0, cashier: 0 },

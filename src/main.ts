@@ -57,7 +57,10 @@ async function start(): Promise<void> {
       if (adapter.mode !== 'solo') return;
       switchAdapter(newLocal(restoreShop({ shop }, newRunId())));
     },
-    onProfile: (profile: Profile) => applyOutfit(profile.outfit),
+    onProfile: (profile: Profile) => {
+      applyOutfit(profile.outfit);
+      if (adapter.mode === 'solo') (adapter as LocalAdapter).setName(profile.name);
+    },
     onAccount: () => accounts.refresh(),
     notify: (message) =>
       overlay.toast.show(message === 'shopFromCloud' ? ACCOUNT_TEXT.shopFromCloud : ACCOUNT_TEXT.shopConflict, 'info', 3500),
@@ -67,6 +70,7 @@ async function start(): Promise<void> {
   const newLocal = (state: ShopState) => {
     const local = new LocalAdapter(state);
     local.setOutfit(store.profile.outfit);
+    local.setName(store.profile.name);
     return local;
   };
   adapter = newLocal(initial);

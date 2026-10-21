@@ -120,6 +120,9 @@
         "excellent": {
           ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000"
         },
+        "bestStreak": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000"
+        },
         "updatedAt": {
           ".validate": "newData.isNumber()"
         },
@@ -181,6 +184,32 @@
         "history": {
           "$day": {
             ".validate": "newData.hasChildren(['day'])"
+          }
+        },
+        "fame": {
+          "$member": {
+            ".validate": "newData.hasChildren(['days'])",
+            "name": {
+              ".validate": "newData.isString() && newData.val().length <= 16"
+            },
+            "days": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000"
+            },
+            "excellent": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000"
+            },
+            "bestStreak": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000"
+            },
+            "cups": {
+              ".validate": "newData.hasChildren()"
+            },
+            "score": {
+              ".validate": "newData.hasChildren()"
+            },
+            "$other": {
+              ".validate": false
+            }
           }
         },
         "updatedAt": {

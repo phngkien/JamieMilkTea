@@ -20,6 +20,7 @@ export class LocalAdapter implements NetAdapter {
   private emoteListeners = new Set<(uid: string, kind: EmoteKind) => void>();
   private owners = soloOwners(SOLO_ID);
   private outfit = DEFAULT_OUTFIT;
+  private name = '';
 
   constructor(initial: ShopState) {
     this.state = { ...initial, solo: true };
@@ -31,6 +32,11 @@ export class LocalAdapter implements NetAdapter {
 
   getConfirmedState(): ShopState {
     return this.state;
+  }
+
+  /** Tên của mình (từ profile), hiện trên bảng tổng kết ngày. */
+  setName(name: string): void {
+    this.name = name;
   }
 
   /** Đổi outfit nhân viên (sau khi mua / mặc trong Tủ đồ). */
@@ -54,7 +60,9 @@ export class LocalAdapter implements NetAdapter {
 
   update(dtMs: number): void {
     this.apply([{ type: 'TICK', dt: Math.min(dtMs, MAX_TICK_MS) }]);
-    const hostActions = planHostActions(this.state);
+    const hostActions = planHostActions(this.state).map((a) =>
+      a.type === 'END_DAY' ? { ...a, names: { [SOLO_ID]: this.name || UI_TEXT.staffName } } : a,
+    );
     if (hostActions.length > 0) this.apply(hostActions);
   }
 

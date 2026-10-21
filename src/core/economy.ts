@@ -1,6 +1,6 @@
 // Tiền: giá ly và định dạng hiển thị kiểu nghìn đồng.
 import { SIZES } from '../config/cup';
-import { TIP } from '../config/scoring';
+import { LEADERBOARD, TIP } from '../config/scoring';
 import { getTea } from '../config/teas';
 import { getTopping } from '../config/toppings';
 import type { CupStation, CupSpec, StaffDay, StationScores } from './types';
@@ -69,12 +69,21 @@ export function splitTip(tip: number, shares: { uid: string; score: number }[]):
 }
 
 export function emptyStaffDay(): StaffDay {
-  return { tips: 0, cups: { tea: 0, topping: 0, cashier: 0 }, score: { tea: 0, topping: 0, cashier: 0 } };
+  return {
+    tips: 0,
+    cups: { tea: 0, topping: 0, cashier: 0 },
+    score: { tea: 0, topping: 0, cashier: 0 },
+    drinks: 0,
+    streak: 0,
+    bestStreak: 0,
+    excellent: 0,
+  };
 }
 
 /**
  * Ghi công một ly vào bảng công sức trong ngày: mỗi người được tính 1 ly + điểm ở mỗi trạm mình làm,
- * cộng phần tip của mình.
+ * cộng phần tip của mình. Điểm cá nhân của ly (trung bình các trạm mình làm) đạt mức "hoàn hảo"
+ * thì chuỗi hoàn hảo tăng 1, không thì chuỗi về 0.
  */
 export function creditCup(
   staff: Record<string, StaffDay>,
@@ -85,15 +94,25 @@ export function creditCup(
   const next: Record<string, StaffDay> = { ...staff };
   const touch = (uid: string) => {
     const old = next[uid] ?? emptyStaffDay();
-    next[uid] = { tips: old.tips, cups: { ...old.cups }, score: { ...old.score } };
+    next[uid] = { ...old, cups: { ...old.cups }, score: { ...old.score } };
     return next[uid];
   };
+  // Điểm cá nhân của ly này theo từng người: cộng điểm các trạm người đó làm
+  const mine = new Map<string, { sum: number; n: number }>();
   for (const station of Object.keys(makers) as CupStation[]) {
     const uid = makers[station];
     if (!uid) continue;
     const d = touch(uid);
     d.cups[station] += 1;
     d.score[station] += scores[station];
+    const m = mine.get(uid) ?? { sum: 0, n: 0 };
+    mine.set(uid, { sum: m.sum + scores[station], n: m.n + 1 });
+  }
+  for (const [uid, m] of mine) {
+    const d = next[uid];
+    d.drinks += 1;
+    d.streak = m.sum / m.n >= LEADERBOARD.perfectScore ? d.streak + 1 : 0;
+    d.bestStreak = Math.max(d.bestStreak, d.streak);
   }
   for (const [uid, amount] of Object.entries(tips)) touch(uid).tips += amount;
   return next;

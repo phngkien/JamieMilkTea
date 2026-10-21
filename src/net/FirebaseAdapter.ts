@@ -139,6 +139,11 @@ export class FirebaseAdapter implements NetAdapter {
     return this.players;
   }
 
+  /** Tên người chơi trong phòng (uid → tên). */
+  private playerNames(): Record<string, string> {
+    return Object.fromEntries(this.players.map((p) => [p.uid, p.name]));
+  }
+
   private get spendRule(): SpendRule {
     return { ownerUid: this.ownerUid, allowStock: this.allowSpending };
   }
@@ -457,7 +462,9 @@ export class FirebaseAdapter implements NetAdapter {
     const tick = reduce(this.state, { type: 'TICK', dt });
     this.state = tick.state;
     events.push(...tick.events);
-    for (const a of planHostActions(this.state)) {
+    for (const planned of planHostActions(this.state)) {
+      // Đóng cửa: gắn tên mọi người trong phòng để hiện bảng xếp hạng và bảng thành tích
+      const a = planned.type === 'END_DAY' ? { ...planned, names: this.playerNames() } : planned;
       const r = reduce(this.state, a);
       this.state = r.state;
       events.push(...r.events);

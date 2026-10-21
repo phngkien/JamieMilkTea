@@ -588,6 +588,83 @@ body {
   color: #c98a12;
 }
 
+/* Bảng xếp hạng cuối ngày và bảng thành tích */
+.rank-list {
+  list-style: none;
+  margin: calc(var(--u) * 10) 0 0;
+  padding: 0;
+}
+
+.rank-row {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 16);
+  min-height: calc(var(--u) * 88);
+  padding: calc(var(--u) * 8) calc(var(--u) * 12);
+  border-bottom: calc(var(--u) * 2) dashed var(--beige);
+  font-size: calc(var(--u) * 34);
+}
+
+.rank-row:last-child {
+  border-bottom: none;
+}
+
+.rank-row.me {
+  background: #fbd1dc;
+  border-radius: calc(var(--u) * 18);
+}
+
+.rank-row.excellent .rank-name {
+  color: #c98a12;
+}
+
+.rank-pos {
+  width: calc(var(--u) * 56);
+  text-align: center;
+  font-family: 'Baloo 2', sans-serif;
+  font-size: calc(var(--u) * 44);
+}
+
+.rank-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.rank-name small,
+.rank-stat small,
+.fame-line b small {
+  font-weight: 600;
+  font-size: calc(var(--u) * 26);
+}
+
+.rank-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.rank-stat b {
+  font-family: 'Baloo 2', sans-serif;
+  font-size: calc(var(--u) * 40);
+  line-height: 1.1;
+}
+
+.rank-note {
+  margin: calc(var(--u) * 12) 0 0;
+  font-size: calc(var(--u) * 32);
+  font-weight: 700;
+  text-align: center;
+}
+
+.rank-note.win {
+  color: #c98a12;
+  font-family: 'Baloo 2', sans-serif;
+  font-size: calc(var(--u) * 40);
+}
+
 /* Cài đặt */
 .settings-list {
   display: flex;

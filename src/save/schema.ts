@@ -10,12 +10,14 @@ import { UPGRADES } from '../config/upgrades';
 import { startDay } from '../core/day';
 import { createShopState } from '../core/reducer';
 import { createProfile, type Ledger } from '../core/profile';
-import type { CupStation, DaySummary, Profile, ShopState } from '../core/types';
-import { decodeStaff } from '../net/serialize';
+import type { CupStation, DaySummary, FameEntry, Profile, ShopState } from '../core/types';
+import { decodeFame, decodeStaff } from '../net/serialize';
 
 /**
  * Phiên bản 1: chỉ có tiệm + cài đặt (lưu trên máy).
  * Phiên bản 2: thêm hồ sơ cá nhân (profile), tên tiệm, chủ tiệm, nâng cấp, trang trí, thông tin đồng bộ cloud.
+ * Các trường thêm sau (bảng thành tích `fame`, chuỗi hoàn hảo...) không đổi cấu trúc cũ: bản lưu
+ * thiếu trường thì normalize điền mặc định, nên không cần tăng phiên bản.
  */
 export const SCHEMA_VERSION = 2;
 
@@ -45,6 +47,8 @@ export interface ShopSave {
   shopName: string;
   upgrades: string[];
   decor: string[];
+  /** Bảng thành tích của tiệm. */
+  fame: Record<string, FameEntry>;
   /** uid của chủ tiệm ('' = chưa đăng nhập lần nào). Tiệm lưu trên cloud ở /shops/{ownerUid}. */
   ownerUid: string;
   /** Lần cuối tiệm thay đổi (ms). */
@@ -92,6 +96,7 @@ export function shopSaveOf(state: ShopState, meta: ShopMeta, now: number): ShopS
     shopName: state.shopName,
     upgrades: [...state.upgrades],
     decor: [...state.decor],
+    fame: { ...state.fame },
     ownerUid: meta.ownerUid,
     updatedAt: now,
     cloudBase: meta.cloudBase,
@@ -132,6 +137,7 @@ export function restoreShop(save: { shop: ShopSave }, runId = ''): ShopState {
     shopName: s.shopName,
     upgrades: s.upgrades,
     decor: s.decor,
+    fame: s.fame,
   };
   return startDay(base, s.dayFinished ? s.day + 1 : s.day);
 }
@@ -215,7 +221,13 @@ export function normalizeShop(shop: unknown, fallbackUpdatedAt = 0): ShopSave | 
   };
   const rawHistory = Array.isArray(shop.history) ? shop.history : isObject(shop.history) ? Object.values(shop.history) : [];
   const history = (rawHistory.filter(isObject) as unknown as DaySummary[])
-    .map((h) => ({ ...h, staff: decodeStaff(h.staff), upgrade: num(h.upgrade, 0) }))
+    .map((h) => ({
+      ...h,
+      staff: decodeStaff(h.staff),
+      upgrade: num(h.upgrade, 0),
+      names: isObject(h.names) ? (h.names as Record<string, string>) : {},
+      excellent: typeof h.excellent === 'string' ? h.excellent : null,
+    }))
     .sort((a, b) => a.day - b.day)
     .slice(-HISTORY_LIMIT);
   const defaults = createShopState(1);
@@ -233,6 +245,7 @@ export function normalizeShop(shop: unknown, fallbackUpdatedAt = 0): ShopSave | 
     shopName: text(shop.shopName, SHOP_NAME, 24).trim() || SHOP_NAME,
     upgrades: strings(shop.upgrades, upgradeIds) ?? [],
     decor: strings(shop.decor, decorIds) ?? [],
+    fame: decodeFame(shop.fame),
     ownerUid: text(shop.ownerUid, '', 128),
     updatedAt: num(shop.updatedAt, fallbackUpdatedAt),
     cloudBase: num(shop.cloudBase, 0),
@@ -261,6 +274,7 @@ export function normalizeProfile(raw: unknown): Profile {
     tipCoins: Math.max(0, Math.floor(num(raw.tipCoins, 0))),
     stats,
     excellent: Math.max(0, Math.floor(num(raw.excellent, 0))),
+    bestStreak: Math.max(0, Math.floor(num(raw.bestStreak, 0))),
     updatedAt: num(raw.updatedAt, 0),
   };
 }

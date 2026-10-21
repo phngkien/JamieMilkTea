@@ -100,6 +100,13 @@ export interface StaffDay {
   tips: number;
   cups: StationTally;
   score: StationTally;
+  /** Số ly khác nhau đã tham gia (một người làm cả 3 trạm của một ly vẫn tính 1 ly). */
+  drinks: number;
+  /** Chuỗi ly hoàn hảo liên tiếp hiện tại và dài nhất trong ngày. */
+  streak: number;
+  bestStreak: number;
+  /** 1 = đạt "Nhân viên xuất sắc" của ngày (ghi lúc đóng cửa). */
+  excellent: number;
 }
 
 /** Thống kê lâu dài của một người ở một trạm. Điểm trung bình = scoreSum / cups. */
@@ -120,7 +127,20 @@ export interface Profile {
   stats: Record<CupStation, StationStat>;
   /** Số lần đạt "Nhân viên xuất sắc". */
   excellent: number;
+  /** Chuỗi ly hoàn hảo dài nhất từ trước tới nay. */
+  bestStreak: number;
   updatedAt: number;
+}
+
+/** Thành tích lâu dài của một người ở một tiệm (bảng thành tích của tiệm). */
+export interface FameEntry {
+  name: string;
+  /** Số ngày đã làm ở tiệm. */
+  days: number;
+  excellent: number;
+  bestStreak: number;
+  cups: StationTally;
+  score: StationTally;
 }
 
 export interface DaySummary extends DayStats {
@@ -128,6 +148,10 @@ export interface DaySummary extends DayStats {
   /** Lãi = doanh thu − nguyên liệu đã dùng − hao phí − tiền thuê. */
   profit: number;
   cashEnd: number;
+  /** Tên những người đã làm trong ngày (uid → tên), để hiện bảng xếp hạng. */
+  names: Record<string, string>;
+  /** uid của "Nhân viên xuất sắc" (null = không ai đủ điều kiện). */
+  excellent: string | null;
 }
 
 /** open: đang mở cửa · closing: hết giờ, phục vụ nốt khách · closed: đã đóng, đang xem tổng kết. */
@@ -166,6 +190,8 @@ export interface ShopState {
   /** Nâng cấp và đồ trang trí đã mua (id trong config/upgrades). */
   upgrades: string[];
   decor: string[];
+  /** Bảng thành tích của tiệm (uid → thành tích). */
+  fame: Record<string, FameEntry>;
   /**
    * Mã của "lượt chơi" hiện tại (đổi mỗi lần mở game / mở phòng). Dùng để cộng tip vào profile
    * đúng một lần, kể cả khi chơi lại cùng một ngày.
@@ -190,7 +216,8 @@ export type Action =
   | { type: 'UNLOCK_ITEM'; kind: 'tea' | 'topping'; id: string }
   | { type: 'BUY_UPGRADE'; id: string }
   | { type: 'RENAME_SHOP'; name: string }
-  | { type: 'END_DAY' }
+  /** `names`: tên người chơi trong phòng (uid → tên), chủ phòng gắn vào khi đóng cửa. */
+  | { type: 'END_DAY'; names?: Record<string, string> }
   | { type: 'START_DAY' };
 
 export type RejectReason =

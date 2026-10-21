@@ -4,7 +4,8 @@ import { startingStock } from '../config/inventory';
 import { SHOP_NAME } from '../config/strings';
 import { emptyDayStats } from '../core/day';
 import { emptyStaffDay } from '../core/economy';
-import type { CupState, CupStation, Customer, ShopState, StaffDay } from '../core/types';
+import { emptyFame } from '../core/leaderboard';
+import type { CupState, CupStation, Customer, FameEntry, ShopState, StaffDay } from '../core/types';
 
 /** Đánh dấu "chưa giao" trong order.served (thay cho null). */
 const NOT_SERVED = -1;
@@ -72,6 +73,10 @@ export function decodeStaff(v: unknown): Record<string, StaffDay> {
     const d = isObj(raw) ? raw : {};
     const day = emptyStaffDay();
     day.tips = Math.max(0, num(d.tips));
+    day.drinks = Math.max(0, num(d.drinks));
+    day.streak = Math.max(0, num(d.streak));
+    day.bestStreak = Math.max(0, num(d.bestStreak));
+    day.excellent = num(d.excellent) > 0 ? 1 : 0;
     const cups = isObj(d.cups) ? d.cups : {};
     const score = isObj(d.score) ? d.score : {};
     for (const s of CUP_STATIONS) {
@@ -79,6 +84,27 @@ export function decodeStaff(v: unknown): Record<string, StaffDay> {
       day.score[s] = Math.max(0, num(score[s]));
     }
     out[uid] = day;
+  }
+  return out;
+}
+
+/** Bảng thành tích của tiệm (uid → thành tích). Thiếu / hỏng thì điền 0. */
+export function decodeFame(v: unknown): Record<string, FameEntry> {
+  const out: Record<string, FameEntry> = {};
+  if (!isObj(v)) return out;
+  for (const [uid, raw] of Object.entries(v)) {
+    const d = isObj(raw) ? raw : {};
+    const e = emptyFame(typeof d.name === 'string' ? d.name.slice(0, 16) : '');
+    e.days = Math.max(0, Math.floor(num(d.days)));
+    e.excellent = Math.max(0, Math.floor(num(d.excellent)));
+    e.bestStreak = Math.max(0, Math.floor(num(d.bestStreak)));
+    const cups = isObj(d.cups) ? d.cups : {};
+    const score = isObj(d.score) ? d.score : {};
+    for (const s of CUP_STATIONS) {
+      e.cups[s] = Math.max(0, num(cups[s]));
+      e.score[s] = Math.max(0, num(score[s]));
+    }
+    out[uid] = e;
   }
   return out;
 }
@@ -143,6 +169,7 @@ export function decodeState(raw: unknown, history: ShopState['history'] = []): S
     shopName: str(raw.shopName, SHOP_NAME) ?? SHOP_NAME,
     upgrades: arr<string>(raw.upgrades),
     decor: arr<string>(raw.decor),
+    fame: decodeFame(raw.fame),
     runId: str(raw.runId, '') ?? '',
   };
 }

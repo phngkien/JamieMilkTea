@@ -146,7 +146,7 @@ export class Overlay {
         // Chơi chung: chỉ chủ phòng bấm sang ngày mới, người khác chờ
         const canNext = this.adapter?.isHost ?? true;
         const myTips = this.adapter ? (e.summary.staff[this.adapter.localId]?.tips ?? 0) : 0;
-        this.modal.open('summary', renderSummary(e.summary, canNext ? null : ROOM_TEXT.waitNextDay, myTips), (action) => {
+        this.modal.open('summary', renderSummary(e.summary, canNext ? null : ROOM_TEXT.waitNextDay, myTips, this.adapter?.localId ?? ''), (action) => {
           if (action === 'next') {
             this.modal.close();
             this.adapter?.dispatch({ type: 'START_DAY' });
@@ -182,6 +182,7 @@ export class Overlay {
       canSpend: this.adapter.canSpend(),
       guest: this.hooks.getAccount()?.anonymous ?? true,
       inRoom: this.adapter.mode === 'room',
+      profile: this.hooks.getProfile(),
     };
   }
 

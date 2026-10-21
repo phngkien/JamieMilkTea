@@ -11,6 +11,7 @@ import {
   RATING_BONUS,
   getDayConfig,
 } from '../config/progression';
+import { addDayToFame, pickExcellent } from './leaderboard';
 import { generateCustomer } from './orders';
 import { upgradeEffects } from './upgrades';
 import { createRng, hashSeed } from './rng';
@@ -89,18 +90,28 @@ export function profitOf(stats: DayStats): number {
   return stats.revenue - stats.ingredients - stats.waste - stats.rent;
 }
 
-/** Đóng cửa: trừ tiền thuê, bỏ ly còn trên bảng, lập bảng tổng kết và ghi vào lịch sử. */
-export function closeDay(state: ShopState): { state: ShopState; summary: DaySummary } {
+/**
+ * Đóng cửa: trừ tiền thuê, bỏ ly còn trên bảng, chọn "Nhân viên xuất sắc", lập bảng tổng kết,
+ * ghi vào lịch sử và bảng thành tích của tiệm. `names`: tên người chơi (uid → tên).
+ */
+export function closeDay(state: ShopState, names: Record<string, string> = {}): { state: ShopState; summary: DaySummary } {
   // Ly còn dở trên bảng gỗ lúc đóng cửa tính là hao phí
   const leftover = state.cups.reduce((sum, c) => sum + c.cost, 0);
+  const excellent = pickExcellent(state.today.staff);
+  const staff = { ...state.today.staff };
+  if (excellent) staff[excellent] = { ...staff[excellent], excellent: 1 };
+  // Chỉ giữ tên của người có làm trong ngày
+  const dayNames: Record<string, string> = {};
+  for (const uid of Object.keys(staff)) if (names[uid]) dayNames[uid] = names[uid].slice(0, 16);
   const today: DayStats = {
     ...state.today,
+    staff,
     waste: state.today.waste + leftover,
     wasteCups: state.today.wasteCups + state.cups.length,
     rent: state.today.rent + RENT_PER_DAY,
   };
   const cashEnd = state.cash - RENT_PER_DAY;
-  const summary: DaySummary = { ...today, day: state.day, profit: profitOf(today), cashEnd };
+  const summary: DaySummary = { ...today, day: state.day, profit: profitOf(today), cashEnd, names: dayNames, excellent };
   return {
     summary,
     state: {
@@ -111,6 +122,7 @@ export function closeDay(state: ShopState): { state: ShopState; summary: DaySumm
       customers: [],
       today,
       history: [...state.history, summary].slice(-HISTORY_LIMIT),
+      fame: addDayToFame(state.fame, staff, dayNames, excellent),
     },
   };
 }

@@ -66,6 +66,7 @@ export function createShopState(seed: number, day = 1, runId = ''): ShopState {
     shopName: SHOP_NAME,
     upgrades: [],
     decor: [],
+    fame: {},
     runId,
   };
 }
@@ -384,7 +385,7 @@ function applyAction(state: ShopState, action: Action, actor: string | null): Re
     }
     case 'END_DAY': {
       if (state.phase === 'closed') return reject(state, action, 'dayClosed');
-      const { state: closed, summary } = closeDay(state);
+      const { state: closed, summary } = closeDay(state, action.names);
       return { state: closed, events: [{ type: 'dayEnded', summary }] };
     }
     case 'START_DAY': {

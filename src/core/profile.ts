@@ -22,6 +22,7 @@ export function createProfile(uid = '', name = '', now = 0): Profile {
     tipCoins: 0,
     stats: { tea: { cups: 0, scoreSum: 0 }, topping: { cups: 0, scoreSum: 0 }, cashier: { cups: 0, scoreSum: 0 } },
     excellent: 0,
+    bestStreak: 0,
     updatedAt: now,
   };
 }
@@ -31,7 +32,7 @@ export function ledgerKey(runId: string, day: number): string {
 }
 
 /**
- * Cộng phần công sức MỚI của `staff` (so với lần cộng trước cùng khóa) vào profile.
+ * Cộng phần công sức MỚI (tip, số ly, điểm, danh hiệu "Nhân viên xuất sắc", chuỗi hoàn hảo) của `staff` (so với lần cộng trước cùng khóa) vào profile.
  * Trả về profile và sổ ghi mới, cùng số tip vừa nhận. Không có gì mới thì trả lại đúng object cũ.
  */
 export function creditProfile(
@@ -44,11 +45,16 @@ export function creditProfile(
   const before = ledger[key] ?? emptyStaffDay();
   // Gọi rất thường xuyên (mỗi lần state đổi): không có gì mới thì thoát sớm, không tạo object mới
   const nothingNew =
-    staff.tips <= before.tips && STATIONS.every((s) => staff.cups[s] <= before.cups[s] && staff.score[s] <= before.score[s]);
+    staff.tips <= before.tips &&
+    staff.excellent <= before.excellent &&
+    staff.bestStreak <= profile.bestStreak &&
+    STATIONS.every((s) => staff.cups[s] <= before.cups[s] && staff.score[s] <= before.score[s]);
   if (nothingNew) return { profile, ledger, gained: 0 };
   const gained = Math.max(0, staff.tips - before.tips);
+  const excellent = Math.max(0, staff.excellent - before.excellent);
+  const bestStreak = Math.max(profile.bestStreak, staff.bestStreak);
   const stats = { ...profile.stats };
-  let changed = gained > 0;
+  let changed = gained > 0 || excellent > 0 || bestStreak > profile.bestStreak;
   for (const s of STATIONS) {
     const cups = Math.max(0, staff.cups[s] - before.cups[s]);
     const score = Math.max(0, staff.score[s] - before.score[s]);
@@ -62,6 +68,10 @@ export function creditProfile(
     tips: Math.max(staff.tips, before.tips),
     cups: { ...before.cups },
     score: { ...before.score },
+    drinks: Math.max(staff.drinks, before.drinks),
+    streak: staff.streak,
+    bestStreak: Math.max(staff.bestStreak, before.bestStreak),
+    excellent: Math.max(staff.excellent, before.excellent),
   };
   for (const s of STATIONS) {
     merged.cups[s] = Math.max(staff.cups[s], before.cups[s]);
@@ -75,7 +85,14 @@ export function creditProfile(
   for (const k of kept) nextLedger[k] = rest[k];
   nextLedger[key] = merged;
   return {
-    profile: { ...profile, tipCoins: profile.tipCoins + gained, stats, updatedAt: now },
+    profile: {
+      ...profile,
+      tipCoins: profile.tipCoins + gained,
+      stats,
+      excellent: profile.excellent + excellent,
+      bestStreak,
+      updatedAt: now,
+    },
     ledger: nextLedger,
     gained,
   };
