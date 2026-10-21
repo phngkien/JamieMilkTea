@@ -88,7 +88,7 @@ Vuốt nền để cuộn; thanh dưới cùng có nút nhảy nhanh **Quầy tr
 
 - Mỗi bình trà, chồng cốc, hũ topping, đá, nước đường có số tồn ở góc. Còn ít thì nhãn nhấp nháy cam; hết thì hiện chữ **"Hết"** và không dùng được.
 - Bấm **Kho hàng** để nhập thêm (trừ tiền két) hoặc mở khóa trà / topping mới (có món phải đợi tới ngày nhất định). Trên màn hình ngang, nút Kho nằm trên thanh trên cùng.
-- Một ngày dài khoảng 6 phút (08:00 → 20:00). Hết giờ thì không nhận khách mới; phục vụ xong khách cuối thì hiện bảng **"Hết ngày N"**: doanh thu, chi phí, lãi, két.
+- Một ngày dài khoảng 4 phút (08:00 → 20:00). Hết giờ thì không nhận khách mới; phục vụ xong khách cuối thì hiện bảng **"Hết ngày N"**: doanh thu, chi phí, lãi, két.
 - Lãi = doanh thu − nguyên liệu của các ly đã bán − hao phí (ly đổ / hỏng) − tiền thuê tiệm. Tiền nhập hàng nằm ở phần **Két**.
 
 **Âm thanh và hình động:** game có tiếng rót (cao dần khi ly đầy), xúc đá, ép nắp, chuông khách vào, tiền, nhạc nền nhẹ. Âm thanh chỉ bắt đầu sau lần chạm đầu tiên (luật của trình duyệt; trên iPhone nhớ tắt chế độ im lặng). Nút 🔊 trên cùng bên phải để tắt/bật tiếng; trong **⚙ Cài đặt** có tắt riêng **Nhạc nền** và bật **Giảm chuyển động** (bớt hình động). Âm lượng, nhịp và giai điệu nhạc nền chỉnh trong `src/config/audio.ts`.

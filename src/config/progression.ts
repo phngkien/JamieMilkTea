@@ -1,7 +1,7 @@
 // Độ khó theo ngày (CLAUDE.md mục 9.6) và đồng hồ ngày (mục 9.5). Thời gian tính bằng mili giây.
 
-/** Một ngày trong game dài bao nhiêu thời gian thật (mặc định 6 phút). */
-export const DAY_LENGTH_MS = 6 * 60 * 1000;
+/** Một ngày trong game dài bao nhiêu thời gian thật (mặc định 4 phút). */
+export const DAY_LENGTH_MS = 4 * 60 * 1000;
 /** Giờ mở cửa và đóng cửa trong game (giờ, 0–24). */
 export const OPEN_HOUR = 8;
 export const CLOSE_HOUR = 20;
