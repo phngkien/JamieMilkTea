@@ -463,8 +463,11 @@ export class FirebaseAdapter implements NetAdapter {
     this.state = tick.state;
     events.push(...tick.events);
     for (const planned of planHostActions(this.state)) {
-      // Đóng cửa: gắn tên mọi người trong phòng để hiện bảng xếp hạng và bảng thành tích
-      const a = planned.type === 'END_DAY' ? { ...planned, names: this.playerNames() } : planned;
+      // Đóng cửa: gắn tên mọi người trong phòng (bảng xếp hạng, bảng thành tích) và người giữ trạm Kho
+      const a =
+        planned.type === 'END_DAY'
+          ? { ...planned, names: this.playerNames(), manager: this.owners.stock ?? undefined }
+          : planned;
       const r = reduce(this.state, a);
       this.state = r.state;
       events.push(...r.events);

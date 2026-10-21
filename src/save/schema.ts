@@ -10,16 +10,17 @@ import { UPGRADES } from '../config/upgrades';
 import { startDay } from '../core/day';
 import { createShopState } from '../core/reducer';
 import { createProfile, type Ledger } from '../core/profile';
-import type { CupStation, DaySummary, FameEntry, Profile, ShopState } from '../core/types';
-import { decodeFame, decodeStaff } from '../net/serialize';
+import type { CupStation, DaySummary, FameEntry, Lot, Profile, ShopState, Yesterday } from '../core/types';
+import { decodeCounts, decodeFame, decodeLots, decodeStaff, decodeYesterday } from '../net/serialize';
 
 /**
  * Phiên bản 1: chỉ có tiệm + cài đặt (lưu trên máy).
  * Phiên bản 2: thêm hồ sơ cá nhân (profile), tên tiệm, chủ tiệm, nâng cấp, trang trí, thông tin đồng bộ cloud.
- * Các trường thêm sau (bảng thành tích `fame`, chuỗi hoàn hảo...) không đổi cấu trúc cũ: bản lưu
- * thiếu trường thì normalize điền mặc định, nên không cần tăng phiên bản.
+ * Phiên bản 3: kho theo lô hàng có hạn dùng (`lots`), nợ nhà cung cấp (`debt`), số liệu kho hôm qua.
+ * Các trường thêm khác (bảng thành tích `fame`, chuỗi hoàn hảo...) không đổi cấu trúc cũ: bản lưu
+ * thiếu trường thì normalize điền mặc định.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export interface Settings {
   tutorialDone: boolean;
@@ -39,6 +40,12 @@ export interface ShopSave {
   seed: number;
   cash: number;
   stock: Record<string, number>;
+  /** Lô hàng theo nguyên liệu (giá vốn, hạn dùng). */
+  lots: Record<string, Lot[]>;
+  /** Nợ nhà cung cấp. */
+  debt: number;
+  /** Số liệu kho hôm qua (để ước lượng nhập hàng). */
+  yesterday: Yesterday | null;
   unlockedTeas: string[];
   unlockedToppings: string[];
   ratingSum: number;
@@ -87,7 +94,11 @@ export function shopSaveOf(state: ShopState, meta: ShopMeta, now: number): ShopS
     dayFinished: state.phase === 'closed',
     seed: state.seed,
     cash: state.cash,
-    stock: { ...state.stock },
+    stock: stockWithIncoming(state),
+    // Hàng nhập gấp chưa giao thì tính như đã về kho (đã trả tiền)
+    lots: lotsWithIncoming(state),
+    debt: state.debt,
+    yesterday: state.yesterday,
     unlockedTeas: [...state.unlockedTeas],
     unlockedToppings: [...state.unlockedToppings],
     ratingSum: state.ratingSum,
@@ -101,6 +112,21 @@ export function shopSaveOf(state: ShopState, meta: ShopMeta, now: number): ShopS
     updatedAt: now,
     cloudBase: meta.cloudBase,
   };
+}
+
+/** Lô trong kho cộng hàng đang giao (lưu xong mở lại thì hàng đó đã về). */
+function lotsWithIncoming(state: ShopState): Record<string, Lot[]> {
+  const lots: Record<string, Lot[]> = {};
+  for (const [id, list] of Object.entries(state.lots)) lots[id] = list.map((l) => ({ ...l }));
+  for (const d of state.incoming) lots[d.item] = [...(lots[d.item] ?? []), { qty: d.qty, cost: d.cost, until: d.until }];
+  return lots;
+}
+
+/** Số tồn cộng hàng đang giao. */
+function stockWithIncoming(state: ShopState): Record<string, number> {
+  const stock = { ...state.stock };
+  for (const d of state.incoming) stock[d.item] = (stock[d.item] ?? 0) + d.qty;
+  return stock;
 }
 
 export interface SaveExtras {
@@ -129,6 +155,9 @@ export function restoreShop(save: { shop: ShopSave }, runId = ''): ShopState {
     ...createShopState(s.seed, s.day, runId),
     cash: s.cash,
     stock: s.stock,
+    lots: s.lots,
+    debt: s.debt,
+    yesterday: s.yesterday,
     unlockedTeas: s.unlockedTeas,
     unlockedToppings: s.unlockedToppings,
     ratingSum: s.ratingSum,
@@ -158,6 +187,11 @@ export const MIGRATIONS: Record<number, Migration> = {
   1: (old) => {
     const settings = isObject(old.settings) ? old.settings : {};
     return { ...old, profile: { name: typeof settings.playerName === 'string' ? settings.playerName : '' } };
+  },
+  // 2 → 3: số tồn cũ thành một lô mỗi nguyên liệu (hạn tính từ ngày đang chơi), chưa có nợ
+  2: (old) => {
+    const shop = isObject(old.shop) ? old.shop : {};
+    return { ...old, shop: { ...shop, lots: {}, debt: 0, yesterday: null } };
   },
 };
 
@@ -227,16 +261,34 @@ export function normalizeShop(shop: unknown, fallbackUpdatedAt = 0): ShopSave | 
       upgrade: num(h.upgrade, 0),
       names: isObject(h.names) ? (h.names as Record<string, string>) : {},
       excellent: typeof h.excellent === 'string' ? h.excellent : null,
+      expired: decodeCounts(h.expired),
+      demand: decodeCounts(h.demand),
+      lost: decodeCounts(h.lost),
+      expiredCost: num(h.expiredCost, 0),
+      lostCustomers: num(h.lostCustomers, 0),
+      lostRevenue: num(h.lostRevenue, 0),
+      rush: num(h.rush, 0),
+      rushExtra: num(h.rushExtra, 0),
+      borrowed: num(h.borrowed, 0),
+      repaid: num(h.repaid, 0),
+      debtEnd: num(h.debtEnd, 0),
+      stockScore: num(h.stockScore, -1),
     }))
     .sort((a, b) => a.day - b.day)
     .slice(-HISTORY_LIMIT);
   const defaults = createShopState(1);
+  const day = Math.max(1, Math.floor(num(shop.day, 1)));
+  // Lô hàng tính theo ngày sẽ chơi tiếp (đã đóng cửa thì là ngày hôm sau)
+  const playDay = shop.dayFinished === true ? day + 1 : day;
   return {
-    day: Math.max(1, Math.floor(num(shop.day, 1))),
+    day,
     dayFinished: shop.dayFinished === true,
     seed: Math.floor(num(shop.seed, Math.floor(Math.random() * 2 ** 31))),
     cash: num(shop.cash, defaults.cash),
     stock,
+    lots: decodeLots(shop.lots, stock, playDay),
+    debt: Math.max(0, num(shop.debt, 0)),
+    yesterday: decodeYesterday(shop.yesterday),
     unlockedTeas: strings(shop.unlockedTeas, teaIds) ?? defaults.unlockedTeas,
     unlockedToppings: strings(shop.unlockedToppings, toppingIds) ?? defaults.unlockedToppings,
     ratingSum: Math.max(0, num(shop.ratingSum, 0)),

@@ -193,7 +193,7 @@ describe('nâng cấp và trang trí', () => {
     expect(fx.patienceFactor).toBeCloseTo(0.85);
     expect(fx.extraCustomers).toBe(2);
     expect(fx.tipFactor).toBeCloseTo(1.25);
-    const s = { ...stateWithCustomer(), upgrades: ['supplier'] };
+    const s: ShopState = { ...stateWithCustomer(), upgrades: ['supplier'], phase: 'prep' };
     const r = reduce(s, { type: 'RESTOCK', item: 'ice' });
     expect(START_CASH - r.state.cash).toBe(Math.round((getStockDef('ice').packPrice * 0.9) / 100) * 100);
   });

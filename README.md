@@ -84,12 +84,16 @@ Lần đầu `git push`, Windows có thể mở cửa sổ **Connect to GitHub**
 
 Vuốt nền để cuộn; thanh dưới cùng có nút nhảy nhanh **Quầy trà · Pha ly · Topping · Kho hàng**.
 
-**Kho và tiền:**
+**Làm chủ tiệm: mỗi ngày có 3 pha**
 
-- Mỗi bình trà, chồng cốc, hũ topping, đá, nước đường có số tồn ở góc. Còn ít thì nhãn nhấp nháy cam; hết thì hiện chữ **"Hết"** và không dùng được.
-- Bấm **Kho hàng** để nhập thêm (trừ tiền két) hoặc mở khóa trà / topping mới (có món phải đợi tới ngày nhất định). Trên màn hình ngang, nút Kho nằm trên thanh trên cùng.
-- Một ngày dài khoảng 4 phút (08:00 → 20:00). Hết giờ thì không nhận khách mới; phục vụ xong khách cuối thì hiện bảng **"Hết ngày N"**: doanh thu, chi phí, lãi, két.
-- Lãi = doanh thu − nguyên liệu của các ly đã bán − hao phí (ly đổ / hỏng) − tiền thuê tiệm. Tiền nhập hàng nằm ở phần **Két**.
+1. **☀ Sáng: Chuẩn bị.** Màn Chuẩn bị tự mở: xem số khách dự kiến, số tồn, hạn dùng và **"Hôm qua khách gọi bao nhiêu"** của từng nguyên liệu, rồi nhập hàng cho vừa đủ. Mỗi nguyên liệu có **gói nhỏ** (ít, đắt hơn mỗi phần) và **gói lớn** (nhiều, rẻ hơn mỗi phần). Xong bấm **Mở cửa**.
+2. **🧋 Bán hàng.** Một ngày dài khoảng 4 phút (08:00 → 20:00). Hết hàng giữa chừng thì bấm **Kho hàng** để **nhập gấp**: đắt hơn ×1,5 và phải chờ 15 giây mới có hàng. Khách gọi món đang hết mà chờ không nổi thì bỏ đi: mất tiền và sao.
+3. **🌙 Tối: Tổng kết.** Bảng **"Hết ngày N"** có phần **Kho hôm nay**: điểm quản lý kho (0–100), khách bị lỡ vì hết hàng, đồ hết hạn phải bỏ, số lần nhập gấp.
+
+- **Hạn dùng:** trà pha, trân châu, khoai môn viên và đá chỉ dùng trong ngày (cuối ngày bỏ phần thừa). Pudding, đậu đỏ, vải, phô mai, thạch dâu để được 2 ngày; thạch cà phê, nha đam, trân châu xoài 3 ngày. Cốc, nước đường, thạch dừa không hỏng.
+- **Tiền:** lãi = doanh thu − nguyên liệu đã dùng − ly hỏng − đồ hết hạn bỏ đi − tiền thuê. Ly dưới 50 điểm thì khách chỉ trả nửa giá.
+- **Mua chịu:** két hết tiền vẫn nhập được hàng, ghi nợ tối đa 300k. Tiền thuê thiếu cũng ghi nợ. Cuối ngày game tự trả nợ bằng phần két vượt 150k, nên sáng hôm sau luôn còn tiền nhập hàng.
+- Số tồn hiện ở góc mỗi bình / hũ. Còn ít thì nhãn nhấp nháy cam; hết thì hiện chữ **"Hết"**. Màn Kho cũng là nơi mở khóa trà / topping mới (tặng kèm 1 gói nhỏ).
 
 **Âm thanh và hình động:** game có tiếng rót (cao dần khi ly đầy), xúc đá, ép nắp, chuông khách vào, tiền, nhạc nền nhẹ. Âm thanh chỉ bắt đầu sau lần chạm đầu tiên (luật của trình duyệt; trên iPhone nhớ tắt chế độ im lặng). Nút 🔊 trên cùng bên phải để tắt/bật tiếng; trong **⚙ Cài đặt** có tắt riêng **Nhạc nền** và bật **Giảm chuyển động** (bớt hình động). Âm lượng, nhịp và giai điệu nhạc nền chỉnh trong `src/config/audio.ts`.
 
@@ -117,7 +121,8 @@ Vuốt nền để cuộn; thanh dưới cùng có nút nhảy nhanh **Quầy tr
 
 | Muốn chỉnh | Sửa file |
 |---|---|
-| Két ban đầu, tiền thuê, số tồn ban đầu, giá nhập, gói nhập, giá mở khóa | `src/config/inventory.ts` |
+| Két ban đầu, tiền thuê, số tồn ban đầu, giá nhập, gói nhỏ / lớn, hạn dùng, nhập gấp, mua chịu, giá mở khóa | `src/config/inventory.ts` |
+| Điểm quản lý kho, ly điểm thấp trả bao nhiêu | `src/config/scoring.ts` (`STOCK_SCORING`, `SCORING`) |
 | Số khách mỗi ngày, kiên nhẫn, tỉ lệ order 2 ly, độ dài một ngày | `src/config/progression.ts` |
 | Giá bán trà / topping | `src/config/teas.ts`, `src/config/toppings.ts` |
 | Phụ thu size L, vạch xanh, tốc độ rót | `src/config/cup.ts` |

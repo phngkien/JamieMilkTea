@@ -5,7 +5,8 @@ import { SHOP_NAME } from '../config/strings';
 import { emptyDayStats } from '../core/day';
 import { emptyStaffDay } from '../core/economy';
 import { emptyFame } from '../core/leaderboard';
-import type { CupState, CupStation, Customer, FameEntry, ShopState, StaffDay } from '../core/types';
+import { lotsFromStock } from '../core/inventory';
+import type { CupState, CupStation, Customer, Delivery, FameEntry, Lot, ShopState, StaffDay, Yesterday } from '../core/types';
 
 /** Đánh dấu "chưa giao" trong order.served (thay cho null). */
 const NOT_SERVED = -1;
@@ -77,6 +78,7 @@ export function decodeStaff(v: unknown): Record<string, StaffDay> {
     day.streak = Math.max(0, num(d.streak));
     day.bestStreak = Math.max(0, num(d.bestStreak));
     day.excellent = num(d.excellent) > 0 ? 1 : 0;
+    day.manage = typeof d.manage === 'number' && d.manage >= 0 ? Math.min(100, d.manage) : -1;
     const cups = isObj(d.cups) ? d.cups : {};
     const score = isObj(d.score) ? d.score : {};
     for (const s of CUP_STATIONS) {
@@ -86,6 +88,68 @@ export function decodeStaff(v: unknown): Record<string, StaffDay> {
     out[uid] = day;
   }
   return out;
+}
+
+/** Bảng số theo nguyên liệu (id → số không âm). */
+export function decodeCounts(v: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!isObj(v)) return out;
+  for (const [id, n] of Object.entries(v)) if (typeof n === 'number' && Number.isFinite(n) && n > 0) out[id] = n;
+  return out;
+}
+
+function decodeLot(v: unknown): Lot | null {
+  const l = isObj(v) ? v : {};
+  const qty = Math.floor(num(l.qty));
+  if (qty <= 0) return null;
+  return { qty, cost: Math.max(0, num(l.cost)), until: Math.max(0, Math.floor(num(l.until))) };
+}
+
+/**
+ * Lô hàng theo nguyên liệu, khớp lại với số tồn `stock` (số tồn là chuẩn).
+ * Thiếu lô (bản lưu cũ) thì tạo lô mới hạn tính từ `day`; thừa thì bớt ở lô sắp hết hạn trước.
+ * Lô đã quá hạn trước ngày `day` thì bỏ.
+ */
+export function decodeLots(v: unknown, stock: Record<string, number>, day: number): Record<string, Lot[]> {
+  const raw = isObj(v) ? v : {};
+  const fresh = lotsFromStock(stock, day);
+  const out: Record<string, Lot[]> = {};
+  for (const id of Object.keys(stock)) {
+    let lots = arr(raw[id])
+      .map(decodeLot)
+      .filter((l): l is Lot => l !== null && (l.until === 0 || l.until >= day))
+      .sort((a, b) => (a.until || Infinity) - (b.until || Infinity));
+    let total = lots.reduce((a, l) => a + l.qty, 0);
+    const want = stock[id] ?? 0;
+    if (total < want) {
+      const extra = fresh[id]?.[0];
+      if (extra) lots = [...lots, { ...extra, qty: want - total }].sort((a, b) => (a.until || Infinity) - (b.until || Infinity));
+      total = want;
+    }
+    // Thừa: bớt dần từ lô đầu
+    let over = total - want;
+    lots = lots
+      .map((l) => {
+        const cut = Math.min(over, l.qty);
+        over -= cut;
+        return { ...l, qty: l.qty - cut };
+      })
+      .filter((l) => l.qty > 0);
+    out[id] = lots;
+  }
+  return out;
+}
+
+function decodeDelivery(v: unknown): Delivery | null {
+  const d = isObj(v) ? v : {};
+  const lot = decodeLot(d);
+  if (!lot || typeof d.item !== 'string') return null;
+  return { ...lot, item: d.item, at: num(d.at) };
+}
+
+export function decodeYesterday(v: unknown): Yesterday | null {
+  if (!isObj(v)) return null;
+  return { demand: decodeCounts(v.demand), lost: decodeCounts(v.lost), expired: decodeCounts(v.expired) };
 }
 
 /** Bảng thành tích của tiệm (uid → thành tích). Thiếu / hỏng thì điền 0. */
@@ -145,15 +209,22 @@ export function decodeState(raw: unknown, history: ShopState['history'] = []): S
     ...emptyDayStats(num(raw.cash)),
     ...rawToday,
     staff: decodeStaff(rawToday.staff),
+    expired: decodeCounts(rawToday.expired),
+    demand: decodeCounts(rawToday.demand),
+    lost: decodeCounts(rawToday.lost),
   } as ShopState['today'];
   return {
     solo: raw.solo === true,
     day: num(raw.day, 1),
     seed: num(raw.seed),
-    phase: raw.phase === 'closing' || raw.phase === 'closed' ? raw.phase : 'open',
+    phase: raw.phase === 'prep' || raw.phase === 'closing' || raw.phase === 'closed' ? raw.phase : 'open',
     time: num(raw.time),
     cash: num(raw.cash),
     stock,
+    lots: decodeLots(raw.lots, stock, num(raw.day, 1)),
+    incoming: arr(raw.incoming).map(decodeDelivery).filter((d): d is Delivery => d !== null),
+    debt: Math.max(0, num(raw.debt)),
+    yesterday: decodeYesterday(raw.yesterday),
     ratingSum: num(raw.ratingSum),
     ratingCount: num(raw.ratingCount),
     today,

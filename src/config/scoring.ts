@@ -25,6 +25,23 @@ export const SCORING = {
   unhappyBelow: 50,
   /** Khách bỏ đi thì để lại số sao này. */
   leaveStars: 1,
+  /** Ly dưới số điểm này thì khách chỉ trả một phần tiền. */
+  fullPayFrom: 50,
+  /** Ly điểm thấp khách trả bao nhiêu phần giá (0.5 = nửa giá). */
+  lowScorePayShare: 0.5,
+};
+
+/**
+ * Điểm quản lý kho của ngày (0–100), cũng là điểm của trạm Kho & quản lý (CLAUDE.md mục 12).
+ * Điểm = 100 − phạt lỡ khách vì hết hàng − phạt đồ bỏ đi − phạt nhập gấp.
+ */
+export const STOCK_SCORING = {
+  /** Mỗi khách bỏ đi vì tiệm hết nguyên liệu món họ gọi. */
+  perLostCustomer: 15,
+  /** Nhân với tỉ lệ (tiền đồ hết hạn bỏ đi / tiền nguyên liệu đã dùng và bỏ đi). 100 = bỏ 20% thì −20 điểm. */
+  wasteWeight: 100,
+  /** Mỗi lần nhập gấp giữa giờ. */
+  perRush: 3,
 };
 
 /**

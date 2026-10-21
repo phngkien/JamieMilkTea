@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RENT_PER_DAY, START_CASH, stockIdOfCup } from '../src/config/inventory';
+import { RENT_PER_DAY, START_CASH, stockIdOfCup, stockIdOfTea } from '../src/config/inventory';
 import { DAY_LENGTH_MS, MAX_CUSTOMERS, getDayConfig } from '../src/config/progression';
 import { clockText, customersForDay, planHostActions } from '../src/core/day';
 import { createShopState, reduce } from '../src/core/reducer';
@@ -54,10 +54,11 @@ describe('day', () => {
   });
 
   it('tổng kết ngày: doanh thu, chi phí, lãi, két khớp với những gì đã làm', () => {
-    let state: ShopState = stateWithCustomer();
+    let state: ShopState = { ...stateWithCustomer(), phase: 'prep' };
     const fill = 0.75;
     const r = run(state, [
-      { type: 'RESTOCK', item: stockIdOfCup('M') }, // -50k
+      { type: 'RESTOCK', item: stockIdOfCup('M') }, // -50k, nhập buổi sáng
+      { type: 'OPEN_SHOP' },
       { type: 'PICK_CUP', size: 'L' },
       { type: 'POUR_TEA', cupId: 'cup1', tea: 'milk', amount: 1.2 }, // tràn
       { type: 'DISCARD_CUP', cupId: 'cup1' },
@@ -78,7 +79,11 @@ describe('day', () => {
     expect(s.wasteCups).toBe(1);
     expect(s.waste).toBe(1500 + 5000); // cốc L + 1 phần trà sữa
     expect(s.ingredients).toBe(1000 + 7000); // cốc M + 1 phần matcha
-    expect(s.profit).toBe(s.revenue - s.ingredients - s.waste - s.rent);
+    // Đồ chỉ dùng trong ngày còn thừa thì bỏ: trà (3 sữa, 3 matcha, 4 hồng trà), trân châu, đá
+    expect(s.expiredCost).toBe(3 * 5000 + 3 * 7000 + 4 * 4500 + 6 * 1500 + 6 * 2000 + 12 * 500);
+    expect(s.expired[stockIdOfTea('milk')]).toBe(3);
+    expect(state.stock[stockIdOfTea('milk')]).toBe(0);
+    expect(s.profit).toBe(s.revenue - s.ingredients - s.waste - s.expiredCost - s.rent);
     // Két = đầu ngày + bán ly − nhập hàng − mở khóa − tiền thuê
     expect(s.cashEnd).toBe(START_CASH + 38000 - 50_000 - RENT_PER_DAY);
     expect(state.cash).toBe(s.cashEnd);
@@ -97,7 +102,7 @@ describe('day', () => {
     const stock = state.stock;
     state = reduce(state, { type: 'START_DAY' }).state;
     expect(state.day).toBe(2);
-    expect(state.phase).toBe('open');
+    expect(state.phase).toBe('prep');
     expect(state.time).toBe(0);
     expect(state.cash).toBe(cash);
     expect(state.stock).toEqual(stock);

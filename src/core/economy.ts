@@ -77,6 +77,7 @@ export function emptyStaffDay(): StaffDay {
     streak: 0,
     bestStreak: 0,
     excellent: 0,
+    manage: -1,
   };
 }
 

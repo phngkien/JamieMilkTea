@@ -1,6 +1,7 @@
 // Bảng "Hết ngày N": khách, sao, doanh thu, chi phí, lãi, két, bảng xếp hạng nhân viên.
 import { LEADERBOARD } from '../config/scoring';
 import { RANK_TEXT, SUMMARY_TEXT, TIP_TEXT, UI_TEXT, fill } from '../config/strings';
+import { getStockDef } from '../config/inventory';
 import { formatMoney, formatRating } from '../core/economy';
 import { rankStaff } from '../core/leaderboard';
 import type { DaySummary } from '../core/types';
@@ -44,12 +45,60 @@ function renderRanking(s: DaySummary, localId: string): string {
     </section>`;
 }
 
+/** Tên nguyên liệu (bỏ qua id lạ từ bản lưu cũ). */
+function stockName(id: string): string {
+  try {
+    return getStockDef(id).name;
+  } catch {
+    return id;
+  }
+}
+
+/** Danh sách "Tên: số" theo nguyên liệu, nhiều nhất trước. */
+function itemLines(counts: Record<string, number>, template: string): string {
+  return Object.entries(counts)
+    .filter(([, n]) => n > 0)
+    .sort(([, a], [, b]) => b - a)
+    .map(([id, n]) => `<div class="sum-line sub"><span>${esc(fill(template, { name: stockName(id), n }))}</span></div>`)
+    .join('');
+}
+
+/** Kho hôm nay: điểm quản lý kho, khách bị lỡ vì hết hàng, đồ hết hạn bỏ đi, nhập gấp. */
+function renderStock(s: DaySummary): string {
+  if (s.stockScore < 0) return '';
+  const manager = Object.entries(s.staff).find(([, d]) => d.manage >= 0)?.[0];
+  const managerName = manager && Object.keys(s.names).length > 1 ? s.names[manager] : '';
+  const perfect = s.lostCustomers === 0 && s.expiredCost === 0 && s.rush === 0;
+  return `<section class="sum-block stock-block">
+      <h3>${esc(SUMMARY_TEXT.stockTitle)}</h3>
+      ${line(SUMMARY_TEXT.stockScore, `${s.stockScore}/100`, 'big stock-score')}
+      ${managerName ? `<p class="hint">${esc(fill(SUMMARY_TEXT.stockManager, { name: managerName }))}</p>` : ''}
+      ${perfect ? `<p class="rank-note win">${esc(SUMMARY_TEXT.perfectStock)}</p>` : ''}
+      ${
+        s.lostCustomers
+          ? `${line(fill(SUMMARY_TEXT.lost, { n: s.lostCustomers }), '', 'lost-line')}${itemLines(s.lost, SUMMARY_TEXT.lostItem)}${line(
+              SUMMARY_TEXT.lostMoney,
+              formatMoney(s.lostRevenue),
+              'sub expense',
+            )}`
+          : ''
+      }
+      ${
+        s.expiredCost
+          ? `${line(SUMMARY_TEXT.expired, minus(s.expiredCost), 'expense')}${itemLines(s.expired, SUMMARY_TEXT.expiredItem)}`
+          : ''
+      }
+      ${s.rush ? line(fill(SUMMARY_TEXT.rush, { n: s.rush, money: formatMoney(s.rushExtra) }), '', 'sub') : ''}
+      ${perfect ? '' : `<p class="hint">${esc(SUMMARY_TEXT.stockTip)}</p>`}
+    </section>`;
+}
+
 /**
  * `waitText`: chơi chung mà mình không phải chủ phòng → hiện chữ chờ thay cho nút sang ngày mới.
  * `myTips`: tip cá nhân của mình trong ngày (không vào két). `localId`: uid của mình (tô sáng trên bảng xếp hạng).
  */
 export function renderSummary(s: DaySummary, waitText: string | null = null, myTips = 0, localId = ''): string {
-  const costs = s.ingredients + s.waste + s.rent;
+  const costs = s.ingredients + s.waste + s.expiredCost + s.rent;
   const stars = s.ratingCount ? formatRating(s.ratingSum, s.ratingCount) : '—';
   return `
     <header class="modal-head summary-head">
@@ -63,11 +112,13 @@ export function renderSummary(s: DaySummary, waitText: string | null = null, myT
         <div class="sum-tile"><b>${esc(stars)} ★</b><span>${esc(SUMMARY_TEXT.stars)}</span></div>
       </div>
       ${renderRanking(s, localId)}
+      ${renderStock(s)}
       <section class="sum-block">
         ${line(SUMMARY_TEXT.revenue, plus(s.revenue), 'big income')}
         ${line(SUMMARY_TEXT.costs, minus(costs), 'big expense')}
         ${line(fill(SUMMARY_TEXT.ingredients, { n: s.cupsServed }), formatMoney(s.ingredients), 'sub')}
         ${s.wasteCups ? line(fill(SUMMARY_TEXT.waste, { n: s.wasteCups }), formatMoney(s.waste), 'sub') : ''}
+        ${s.expiredCost ? line(SUMMARY_TEXT.expiredCost, formatMoney(s.expiredCost), 'sub') : ''}
         ${line(SUMMARY_TEXT.rent, formatMoney(s.rent), 'sub')}
         ${line(s.profit >= 0 ? SUMMARY_TEXT.profit : SUMMARY_TEXT.loss, s.profit >= 0 ? plus(s.profit) : formatMoney(s.profit), `big ${s.profit >= 0 ? 'profit' : 'expense'}`)}
       </section>
@@ -79,7 +130,10 @@ export function renderSummary(s: DaySummary, waitText: string | null = null, myT
         ${s.unlock ? line(SUMMARY_TEXT.cashUnlock, minus(s.unlock), 'sub') : ''}
         ${s.upgrade ? line(SUMMARY_TEXT.cashUpgrade, minus(s.upgrade), 'sub') : ''}
         ${line(SUMMARY_TEXT.cashRent, minus(s.rent), 'sub')}
+        ${s.borrowed ? line(SUMMARY_TEXT.cashBorrow, plus(s.borrowed), 'sub') : ''}
+        ${s.repaid ? line(SUMMARY_TEXT.cashRepay, minus(s.repaid), 'sub') : ''}
         ${line(SUMMARY_TEXT.cashEnd, formatMoney(s.cashEnd), 'big cash')}
+        ${s.debtEnd ? line(SUMMARY_TEXT.debtEnd, formatMoney(s.debtEnd), 'expense') : ''}
       </section>
       <section class="sum-block">
         ${line(SUMMARY_TEXT.myTips, plus(myTips), 'big tips')}

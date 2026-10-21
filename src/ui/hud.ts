@@ -74,8 +74,8 @@ export class Hud {
     this.lastKey = key;
     this.shop.textContent = `${state.shopName} ›`;
     this.day.textContent = fill(UI_TEXT.day, { n: state.day });
-    this.clock.textContent = `🕒 ${clock}`;
-    this.clock.classList.toggle('closing', state.phase !== 'open');
+    this.clock.textContent = state.phase === 'prep' ? UI_TEXT.prepClock : `🕒 ${clock}`;
+    this.clock.classList.toggle('closing', state.phase === 'closing' || state.phase === 'closed');
     this.money.textContent = formatMoney(state.cash);
     this.money.classList.toggle('negative', state.cash < 0);
     const avg = state.ratingCount ? state.ratingSum / state.ratingCount : 0;

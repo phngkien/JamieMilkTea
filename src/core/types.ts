@@ -1,4 +1,5 @@
 // Mọi kiểu dữ liệu dùng chung của game. File này không import Phaser hay Firebase.
+import type { PackSize } from '../config/inventory';
 
 export type Size = 'M' | 'L';
 export type SugarLevel = 0 | 30 | 50 | 70 | 100;
@@ -88,6 +89,21 @@ export interface DayStats {
   rent: number;
   /** Tiền mua nâng cấp và trang trí trong ngày. */
   upgrade: number;
+  /** Đồ hết hạn bị bỏ lúc đóng cửa: số đơn vị theo nguyên liệu, và tổng giá vốn (đồng). */
+  expired: Record<string, number>;
+  expiredCost: number;
+  /** Khách đã gọi bao nhiêu đơn vị mỗi nguyên liệu (kể cả khách bỏ đi) — để ước lượng nhập hàng. */
+  demand: Record<string, number>;
+  /** Số khách bỏ đi vì tiệm hết nguyên liệu (theo nguyên liệu thiếu), và số tiền bị lỡ. */
+  lost: Record<string, number>;
+  lostCustomers: number;
+  lostRevenue: number;
+  /** Số lần nhập gấp trong giờ mở cửa, và tiền trả thêm so với giá sáng. */
+  rush: number;
+  rushExtra: number;
+  /** Mua chịu thêm trong ngày, và tiền đã trả nợ lúc đóng cửa. */
+  borrowed: number;
+  repaid: number;
   /** Công sức từng người trong ngày (theo uid): tip, số ly, điểm trạm. */
   staff: Record<string, StaffDay>;
 }
@@ -107,6 +123,34 @@ export interface StaffDay {
   bestStreak: number;
   /** 1 = đạt "Nhân viên xuất sắc" của ngày (ghi lúc đóng cửa). */
   excellent: number;
+  /** Điểm quản lý kho (0–100) nếu người này giữ trạm Kho lúc đóng cửa; −1 = không giữ. */
+  manage: number;
+}
+
+/** Một lô nguyên liệu trong kho. Dùng lô sắp hết hạn trước. */
+export interface Lot {
+  qty: number;
+  /** Giá vốn mỗi đơn vị (đồng) — gói nhỏ, nhập gấp thì đắt hơn. */
+  cost: number;
+  /** Ngày cuối còn dùng được (đóng cửa ngày đó thì bỏ). 0 = không hỏng. */
+  until: number;
+}
+
+/** Hàng nhập gấp đang trên đường giao. */
+export interface Delivery {
+  item: string;
+  qty: number;
+  cost: number;
+  until: number;
+  /** Giao tới lúc `time` của ngày đạt mốc này (ms). */
+  at: number;
+}
+
+/** Số liệu kho của ngày hôm trước, hiện ở màn Chuẩn bị để ước lượng. */
+export interface Yesterday {
+  demand: Record<string, number>;
+  lost: Record<string, number>;
+  expired: Record<string, number>;
 }
 
 /** Thống kê lâu dài của một người ở một trạm. Điểm trung bình = scoreSum / cups. */
@@ -148,14 +192,21 @@ export interface DaySummary extends DayStats {
   /** Lãi = doanh thu − nguyên liệu đã dùng − hao phí − tiền thuê. */
   profit: number;
   cashEnd: number;
+  /** Nợ nhà cung cấp còn lại sau khi đóng cửa. */
+  debtEnd: number;
+  /** Điểm quản lý kho của ngày (0–100). */
+  stockScore: number;
   /** Tên những người đã làm trong ngày (uid → tên), để hiện bảng xếp hạng. */
   names: Record<string, string>;
   /** uid của "Nhân viên xuất sắc" (null = không ai đủ điều kiện). */
   excellent: string | null;
 }
 
-/** open: đang mở cửa · closing: hết giờ, phục vụ nốt khách · closed: đã đóng, đang xem tổng kết. */
-export type DayPhase = 'open' | 'closing' | 'closed';
+/**
+ * prep: buổi sáng chuẩn bị (nhập hàng giá thường, chưa có khách) · open: đang mở cửa ·
+ * closing: hết giờ, phục vụ nốt khách · closed: đã đóng, đang xem tổng kết.
+ */
+export type DayPhase = 'prep' | 'open' | 'closing' | 'closed';
 
 export interface ShopState {
   /** true = chơi một mình (một ly, không cần chuyền); false = phòng nhiều người. */
@@ -167,8 +218,16 @@ export interface ShopState {
   time: number;
   /** Tiền trong két (đồng). */
   cash: number;
-  /** Số tồn của từng nguyên liệu (xem config/inventory). */
+  /** Số tồn của từng nguyên liệu (xem config/inventory). Luôn bằng tổng các lô trong `lots`. */
   stock: Record<string, number>;
+  /** Các lô hàng theo nguyên liệu (giá vốn, hạn dùng). */
+  lots: Record<string, Lot[]>;
+  /** Hàng nhập gấp đang chờ giao. */
+  incoming: Delivery[];
+  /** Nợ nhà cung cấp (mua chịu, tiền thuê chưa trả). */
+  debt: number;
+  /** Số liệu kho hôm qua (null = chưa có). */
+  yesterday: Yesterday | null;
   /** Đánh giá tích lũy từ trước tới nay. */
   ratingSum: number;
   ratingCount: number;
@@ -212,13 +271,19 @@ export type Action =
   | { type: 'CUSTOMER_ARRIVE'; customer: Customer }
   | { type: 'CUSTOMER_LEAVE'; customerId: string }
   | { type: 'TICK'; dt: number }
-  | { type: 'RESTOCK'; item: string }
+  /** Nhập hàng. Sáng (prep): giá thường, có ngay. Trong giờ mở cửa: nhập gấp, đắt hơn, chờ giao. */
+  | { type: 'RESTOCK'; item: string; pack?: PackSize }
   | { type: 'UNLOCK_ITEM'; kind: 'tea' | 'topping'; id: string }
   | { type: 'BUY_UPGRADE'; id: string }
   | { type: 'RENAME_SHOP'; name: string }
-  /** `names`: tên người chơi trong phòng (uid → tên), chủ phòng gắn vào khi đóng cửa. */
-  | { type: 'END_DAY'; names?: Record<string, string> }
-  | { type: 'START_DAY' };
+  /**
+   * `names`: tên người chơi trong phòng (uid → tên), `manager`: người giữ trạm Kho.
+   * Chủ phòng gắn vào khi đóng cửa.
+   */
+  | { type: 'END_DAY'; names?: Record<string, string>; manager?: string }
+  | { type: 'START_DAY' }
+  /** Hết buổi sáng chuẩn bị, mở cửa đón khách. */
+  | { type: 'OPEN_SHOP' };
 
 export type RejectReason =
   | 'boardFull'
@@ -243,6 +308,7 @@ export type RejectReason =
   | 'notYourStation'
   | 'notOwner'
   | 'alreadyOwned'
+  | 'notOpenYet'
   | 'unknown';
 
 /** Điểm cá nhân 0–100 theo từng trạm của một ly (CLAUDE.md mục 12). */
@@ -294,7 +360,9 @@ export type GameEvent =
       reason: 'done' | 'impatient';
       stars: number;
     }
-  | { type: 'restocked'; item: string; amount: number; price: number }
+  | { type: 'restocked'; item: string; amount: number; price: number; rush: boolean }
+  | { type: 'delivered'; item: string; amount: number }
+  | { type: 'shopOpened'; day: number }
   | { type: 'unlocked'; kind: 'tea' | 'topping'; id: string }
   | { type: 'upgraded'; id: string }
   | { type: 'renamed'; name: string }

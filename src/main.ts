@@ -9,7 +9,7 @@ import { ACCOUNT_TEXT, SETTINGS_TEXT, TIP_TEXT, fill } from './config/strings';
 import { startDay } from './core/day';
 import { formatMoney } from './core/economy';
 import { buyOutfit, wearOutfit } from './core/profile';
-import { createShopState } from './core/reducer';
+import { newShop } from './core/reducer';
 import type { GameEvent, Profile, ShopState } from './core/types';
 import { chooseLayout, type ShopLayout } from './layout';
 import type { FirebaseAdapter } from './net/FirebaseAdapter';
@@ -46,7 +46,7 @@ async function start(): Promise<void> {
 
   // Có bản lưu thì chơi tiếp từ lúc mở cửa của ngày đang chơi; không có thì tiệm mới.
   const saved = await repo.load();
-  const initial = saved ? restoreShop(saved, newRunId()) : createShopState(newSeed(), 1, newRunId());
+  const initial = saved ? restoreShop(saved, newRunId()) : newShop(newSeed(), newRunId());
   // Gán ngay bên dưới, sau khi có store (cần outfit trong profile)
   let adapter!: NetAdapter;
   let unsubSave: (() => void) | null = null;
@@ -162,7 +162,7 @@ async function start(): Promise<void> {
     },
     sfx,
     onReset: () => {
-      void store.resetShop(createShopState(newSeed(), 1, newRunId())).then(() => window.location.reload());
+      void store.resetShop(newShop(newSeed(), newRunId())).then(() => window.location.reload());
     },
     getProfile: () => store.profile,
     getAccount: () => store.account,
@@ -212,7 +212,7 @@ async function start(): Promise<void> {
         ? { ...roomState, solo: true, runId: newRunId() }
         : mine
           ? restoreShop({ shop: mine }, newRunId())
-          : createShopState(newSeed(), 1, newRunId());
+          : newShop(newSeed(), newRunId());
       switchAdapter(newLocal(roomState ? startDay(state, state.phase === 'closed' ? state.day + 1 : state.day) : state));
       store.save();
       await store.sync();

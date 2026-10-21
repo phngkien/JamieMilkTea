@@ -1,5 +1,5 @@
-// Ngày trong game: đồng hồ, lịch khách, đóng cửa, tổng kết, sang ngày mới.
-import { RENT_PER_DAY } from '../config/inventory';
+// Ngày trong game: buổi sáng chuẩn bị, đồng hồ, lịch khách, đóng cửa, tổng kết, sang ngày mới.
+import { CREDIT, RENT_PER_DAY } from '../config/inventory';
 import {
   ARRIVAL_JITTER,
   ARRIVAL_SPREAD,
@@ -11,10 +11,13 @@ import {
   RATING_BONUS,
   getDayConfig,
 } from '../config/progression';
+import { STOCK_SCORING } from '../config/scoring';
+import { deliver, expireLots, pay } from './inventory';
 import { addDayToFame, pickExcellent } from './leaderboard';
 import { generateCustomer } from './orders';
 import { upgradeEffects } from './upgrades';
 import { createRng, hashSeed } from './rng';
+import { emptyStaffDay } from './economy';
 import type { Action, DayStats, DaySummary, ShopState } from './types';
 
 const SALT_ARRIVAL = 2;
@@ -35,6 +38,16 @@ export function emptyDayStats(cashStart: number): DayStats {
     unlock: 0,
     rent: 0,
     upgrade: 0,
+    expired: {},
+    expiredCost: 0,
+    demand: {},
+    lost: {},
+    lostCustomers: 0,
+    lostRevenue: 0,
+    rush: 0,
+    rushExtra: 0,
+    borrowed: 0,
+    repaid: 0,
     staff: {},
   };
 }
@@ -69,7 +82,8 @@ export function clockText(time: number): string {
  * Chơi đơn và nhiều người đều dùng hàm này nên mọi máy giống nhau.
  */
 export function planHostActions(state: ShopState): Action[] {
-  if (state.phase === 'closed') return [];
+  // Buổi sáng chuẩn bị: chưa có khách, chờ người chơi bấm "Mở cửa"
+  if (state.phase === 'closed' || state.phase === 'prep') return [];
   const noMoreArrivals = state.phase === 'closing' || state.nextCustomerIndex >= state.customersToday;
   if (noMoreArrivals) return state.customers.length === 0 ? [{ type: 'END_DAY' }] : [];
   if (state.time < state.nextArrivalAt || state.customers.length >= MAX_CUSTOMERS) return [];
@@ -85,54 +99,101 @@ export function planHostActions(state: ShopState): Action[] {
   return [{ type: 'CUSTOMER_ARRIVE', customer: { ...customer, drainPerSecond: customer.drainPerSecond * factor } }];
 }
 
-/** Lãi = doanh thu − nguyên liệu đã dùng − hao phí − tiền thuê. */
+/** Lãi = doanh thu − nguyên liệu đã dùng − hao phí (ly hỏng) − đồ hết hạn bỏ đi − tiền thuê. */
 export function profitOf(stats: DayStats): number {
-  return stats.revenue - stats.ingredients - stats.waste - stats.rent;
+  return stats.revenue - stats.ingredients - stats.waste - stats.expiredCost - stats.rent;
 }
 
 /**
- * Đóng cửa: trừ tiền thuê, bỏ ly còn trên bảng, chọn "Nhân viên xuất sắc", lập bảng tổng kết,
- * ghi vào lịch sử và bảng thành tích của tiệm. `names`: tên người chơi (uid → tên).
+ * Điểm quản lý kho của ngày (0–100): bớt điểm khi khách bỏ đi vì hết hàng, khi phải bỏ đồ hết hạn
+ * (tính theo tỉ lệ tiền bỏ đi trên tiền nguyên liệu), và mỗi lần nhập gấp.
  */
-export function closeDay(state: ShopState, names: Record<string, string> = {}): { state: ShopState; summary: DaySummary } {
+export function stockScoreOf(stats: DayStats): number {
+  const used = stats.ingredients + stats.expiredCost;
+  const wasteShare = used > 0 ? stats.expiredCost / used : 0;
+  const raw =
+    100 -
+    STOCK_SCORING.perLostCustomer * stats.lostCustomers -
+    STOCK_SCORING.wasteWeight * wasteShare -
+    STOCK_SCORING.perRush * stats.rush;
+  return Math.round(Math.max(0, Math.min(100, raw)));
+}
+
+/**
+ * Đóng cửa: nhận nốt hàng đang giao, bỏ đồ hết hạn, trừ tiền thuê (thiếu thì ghi nợ), tự trả nợ bằng
+ * phần két dư, chấm điểm quản lý kho, chọn "Nhân viên xuất sắc", lập bảng tổng kết, ghi vào lịch sử
+ * và bảng thành tích của tiệm. `names`: tên người chơi (uid → tên). `manager`: người giữ trạm Kho.
+ */
+export function closeDay(
+  state: ShopState,
+  names: Record<string, string> = {},
+  manager: string | null = null,
+): { state: ShopState; summary: DaySummary } {
   // Ly còn dở trên bảng gỗ lúc đóng cửa tính là hao phí
   const leftover = state.cups.reduce((sum, c) => sum + c.cost, 0);
-  const excellent = pickExcellent(state.today.staff);
-  const staff = { ...state.today.staff };
+  let next: ShopState = {
+    ...state,
+    today: {
+      ...state.today,
+      waste: state.today.waste + leftover,
+      wasteCups: state.today.wasteCups + state.cups.length,
+    },
+  };
+  next = expireLots(deliver(next, true).state);
+  // Tiền thuê luôn trả được: két không đủ thì phần thiếu ghi nợ
+  next = pay(next, RENT_PER_DAY, true) ?? next;
+  next = { ...next, today: { ...next.today, rent: next.today.rent + RENT_PER_DAY } };
+  // Trả nợ bằng phần két vượt mức giữ lại (để sáng mai vẫn có tiền nhập hàng)
+  const repay = Math.min(next.debt, Math.max(0, next.cash - CREDIT.keepCash));
+  if (repay > 0) {
+    next = { ...next, cash: next.cash - repay, debt: next.debt - repay, today: { ...next.today, repaid: next.today.repaid + repay } };
+  }
+
+  const stockScore = stockScoreOf(next.today);
+  const excellent = pickExcellent(next.today.staff);
+  const staff = { ...next.today.staff };
   if (excellent) staff[excellent] = { ...staff[excellent], excellent: 1 };
+  if (manager) staff[manager] = { ...(staff[manager] ?? emptyStaffDay()), manage: stockScore };
   // Chỉ giữ tên của người có làm trong ngày
   const dayNames: Record<string, string> = {};
   for (const uid of Object.keys(staff)) if (names[uid]) dayNames[uid] = names[uid].slice(0, 16);
-  const today: DayStats = {
-    ...state.today,
-    staff,
-    waste: state.today.waste + leftover,
-    wasteCups: state.today.wasteCups + state.cups.length,
-    rent: state.today.rent + RENT_PER_DAY,
+  const today: DayStats = { ...next.today, staff };
+  const summary: DaySummary = {
+    ...today,
+    day: state.day,
+    profit: profitOf(today),
+    cashEnd: next.cash,
+    debtEnd: next.debt,
+    stockScore,
+    names: dayNames,
+    excellent,
   };
-  const cashEnd = state.cash - RENT_PER_DAY;
-  const summary: DaySummary = { ...today, day: state.day, profit: profitOf(today), cashEnd, names: dayNames, excellent };
   return {
     summary,
     state: {
-      ...state,
+      ...next,
       phase: 'closed',
-      cash: cashEnd,
       cups: [],
       customers: [],
       today,
+      yesterday: { demand: today.demand, lost: today.lost, expired: today.expired },
       history: [...state.history, summary].slice(-HISTORY_LIMIT),
       fame: addDayToFame(state.fame, staff, dayNames, excellent),
     },
   };
 }
 
-/** Sang ngày mới: giữ két, kho, món đã mở, đánh giá; đặt lại đồng hồ và lịch khách. */
+/**
+ * Sang ngày mới (hoặc chơi lại từ đầu ngày): giữ két, kho, món đã mở, đánh giá; đặt lại đồng hồ và lịch
+ * khách. Bắt đầu bằng buổi sáng chuẩn bị (nhập hàng giá thường), bấm "Mở cửa" mới có khách.
+ */
 export function startDay(state: ShopState, day: number): ShopState {
+  // Hàng nhập gấp đã trả tiền mà chưa kịp giao thì giao luôn
+  const delivered = deliver(state, true).state;
   return {
-    ...state,
+    ...delivered,
     day,
-    phase: 'open',
+    phase: 'prep',
     time: 0,
     customers: [],
     cups: [],

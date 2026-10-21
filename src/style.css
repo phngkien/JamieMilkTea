@@ -497,6 +497,49 @@ body {
   background: var(--gold);
 }
 
+/* Màn Chuẩn bị / Kho: tên + số tồn, ghi chú hạn dùng / hôm qua, hai nút gói nhỏ / gói lớn */
+.stock-row.prep-row {
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'name count' 'notes notes' 'buy buy';
+  row-gap: calc(var(--u) * 8);
+}
+
+.prep-row .stock-count {
+  text-align: right;
+}
+
+.stock-notes {
+  grid-area: notes;
+  font-size: calc(var(--u) * 27);
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.stock-notes.lost {
+  color: var(--danger);
+  opacity: 1;
+}
+
+.stock-buy {
+  grid-area: buy;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: calc(var(--u) * 14);
+}
+
+.stock-row .stock-buy button {
+  grid-area: auto;
+  min-height: calc(var(--u) * 88);
+}
+
+.stock-buy button.pack-big {
+  background: var(--mint, #bfe6d3);
+}
+
+.prep-tiles {
+  grid-template-columns: 1fr 1fr;
+}
+
 /* Tổng kết ngày */
 .summary-head {
   flex-direction: column;

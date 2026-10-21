@@ -154,6 +154,19 @@
             ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000 && (!data.exists() || newData.val() - data.val() <= 5000 || newData.parent().parent().child('day').val() === 1)"
           }
         },
+        "lots": {
+          "$item": {
+            "$i": {
+              ".validate": "newData.hasChildren(['qty', 'cost', 'until']) && newData.child('qty').isNumber() && newData.child('qty').val() > 0 && newData.child('qty').val() <= 100000 && newData.child('cost').isNumber() && newData.child('cost').val() >= 0 && newData.child('until').isNumber() && newData.child('until').val() >= 0"
+            }
+          }
+        },
+        "debt": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000"
+        },
+        "yesterday": {
+          ".validate": "newData.hasChildren()"
+        },
         "dayFinished": {
           ".validate": "newData.isBoolean()"
         },

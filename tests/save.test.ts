@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { STOCK_ICE, stockIdOfCup } from '../src/config/inventory';
 import { createShopState, reduce } from '../src/core/reducer';
+import type { ShopState } from '../src/core/types';
 import {
   SCHEMA_VERSION,
   createSave,
@@ -14,7 +15,7 @@ import { run, stateWithCustomer } from './helpers';
 
 describe('save', () => {
   it('lưu rồi đọc lại giữ nguyên ngày, két, kho, món đã mở, đánh giá', () => {
-    let state = { ...createShopState(77), day: 2 };
+    let state: ShopState = { ...createShopState(77, 2), phase: 'prep' };
     state = run(state, [
       { type: 'UNLOCK_ITEM', kind: 'topping', id: 'pudding' },
       { type: 'RESTOCK', item: STOCK_ICE },
@@ -26,12 +27,13 @@ describe('save', () => {
     expect(restored.day).toBe(2);
     expect(restored.cash).toBe(state.cash);
     expect(restored.stock).toEqual(state.stock);
+    expect(restored.lots).toEqual(state.lots);
     expect(restored.unlockedToppings).toContain('pudding');
     expect(restored.ratingSum).toBe(9);
     expect(restored.seed).toBe(77);
     // Bắt đầu lại từ lúc mở cửa, không còn khách hay ly dở
     expect(restored.time).toBe(0);
-    expect(restored.phase).toBe('open');
+    expect(restored.phase).toBe('prep');
     expect(restored.customers).toEqual([]);
     expect(restored.cups).toEqual([]);
     expect(save!.updatedAt).toBe(123);

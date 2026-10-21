@@ -1,6 +1,6 @@
 // Lớp DOM phủ đúng lên vùng canvas: HUD, thanh nút, thông báo, hướng dẫn và các màn Kho / Tổng kết / Cài đặt.
 // Kích thước chữ/nút tính theo đơn vị khung (--u).
-import { LOW_STOCK_AT, STOCK, getStockDef, stockIdOfTea, stockIdOfTopping } from '../config/inventory';
+import { LOW_STOCK_AT, RUSH, STOCK, getStockDef, stockIdOfTea, stockIdOfTopping, type PackSize } from '../config/inventory';
 import { getUpgrade } from '../config/upgrades';
 import { EMOTE_TEXT, ROOM_TEXT, SETTINGS_TEXT, SHOP_TEXT, STOCK_TEXT, WARDROBE_TEXT, fill } from '../config/strings';
 import { getOutfit } from '../config/outfits';
@@ -16,7 +16,7 @@ import { Modal } from './modal';
 import { QuickNav, type Section } from './quickNav';
 import { renderSettings } from './settingsScreen';
 import { renderShopScreen, shopScreenKey, type ShopScreenView } from './shopScreen';
-import { renderStockScreen, stockScreenKey } from './stockScreen';
+import { renderStockScreen, stockScreenKey, type StockView } from './stockScreen';
 import { renderSummary } from './summaryScreen';
 import { Toast } from './toast';
 import { TutorialCard } from './tutorial';
@@ -65,6 +65,8 @@ export class Overlay {
   private stockKey = '';
   private shopKey = '';
   private prevStock: Record<string, number> | null = null;
+  /** Đã tự mở màn Chuẩn bị cho buổi sáng nào (runId:ngày) — chỉ tự mở một lần mỗi sáng. */
+  private prepShownFor = '';
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -137,7 +139,17 @@ export class Overlay {
         this.toast.show(SHOP_TEXT.renamed);
       }
       if (e.type === 'restocked') {
-        this.toast.show(fill(STOCK_TEXT.restocked, { n: e.amount, name: getStockDef(e.item).name }));
+        const name = getStockDef(e.item).name;
+        this.toast.show(
+          e.rush
+            ? fill(STOCK_TEXT.rushOrdered, { n: e.amount, name, s: RUSH.deliveryMs / 1000 })
+            : fill(STOCK_TEXT.restocked, { n: e.amount, name }),
+        );
+      } else if (e.type === 'delivered') {
+        this.toast.show(fill(STOCK_TEXT.delivered, { n: e.amount, name: getStockDef(e.item).name }));
+      } else if (e.type === 'shopOpened') {
+        if (this.modal.current === 'stock') this.modal.close();
+        this.toast.show(STOCK_TEXT.opened, 'info', 2500);
       } else if (e.type === 'unlocked') {
         const id = e.kind === 'tea' ? stockIdOfTea(e.id) : stockIdOfTopping(e.id);
         this.toast.show(fill(STOCK_TEXT.unlocked, { name: getStockDef(id).name }));
@@ -157,11 +169,18 @@ export class Overlay {
       }
     }
     this.checkStockWarnings(state);
+    // Buổi sáng: tự mở màn Chuẩn bị (một lần mỗi sáng; đóng rồi thì mở lại bằng nút Kho)
+    const morning = `${state.runId}:${state.day}`;
+    if (state.phase === 'prep' && this.prepShownFor !== morning && this.modal.current !== 'summary') {
+      this.prepShownFor = morning;
+      if (this.modal.current !== 'stock') this.openStock();
+    }
     if (this.modal.current === 'stock') {
-      const key = stockScreenKey(state) + String(this.adapter?.canSpend());
-      if (key !== this.stockKey) {
+      const view = this.stockView(state);
+      const key = view ? stockScreenKey(view) : '';
+      if (view && key !== this.stockKey) {
         this.stockKey = key;
-        this.modal.update(renderStockScreen(state, this.adapter?.canSpend() ?? true));
+        this.modal.update(renderStockScreen(view));
       }
     }
     if (this.modal.current === 'shop') {
@@ -226,6 +245,8 @@ export class Overlay {
     const prev = this.prevStock;
     this.prevStock = state.stock;
     if (prev === state.stock) return;
+    // Cảnh báo "sắp hết / đã hết" chỉ trong giờ bán (đóng cửa bỏ đồ hết hạn thì không báo)
+    const selling = state.phase === 'open' || state.phase === 'closing';
     let alert: 'none' | 'low' | 'out' = 'none';
     for (const def of STOCK) {
       const now = state.stock[def.id] ?? 0;
@@ -233,7 +254,7 @@ export class Overlay {
       if (!this.inUse(state, def.id)) continue;
       if (now === 0) alert = 'out';
       else if (now <= LOW_STOCK_AT && alert === 'none') alert = 'low';
-      if (!prev || now >= before) continue;
+      if (!prev || now >= before || !selling) continue;
       if (now === 0) {
         this.toast.show(fill(STOCK_TEXT.outWarning, { name: def.name }), 'warn', 2500);
         this.hooks?.sfx.ting();
@@ -254,14 +275,26 @@ export class Overlay {
     return !isTeaOrTopping || tea || topping;
   }
 
+  private stockView(state: ShopState): StockView | null {
+    const adapter = this.adapter;
+    if (!adapter) return null;
+    return { state, canSpend: adapter.canSpend(), canOpen: adapter.getOwners().stock === adapter.localId };
+  }
+
+  /** Màn Kho (buổi sáng là màn Chuẩn bị, có nút "Mở cửa"). */
   openStock(): void {
     const adapter = this.adapter;
     if (!adapter || this.modal.current === 'summary') return;
-    const state = adapter.getState();
-    this.stockKey = stockScreenKey(state) + String(adapter.canSpend());
-    this.modal.open('stock', renderStockScreen(state, adapter.canSpend()), (action, data) => {
+    const view = this.stockView(adapter.getState());
+    if (!view) return;
+    this.stockKey = stockScreenKey(view);
+    this.modal.open('stock', renderStockScreen(view), (action, data) => {
       if (action === 'close') this.modal.close();
-      else if (action === 'restock' && data.item) adapter.dispatch({ type: 'RESTOCK', item: data.item });
+      else if (action === 'open') adapter.dispatch({ type: 'OPEN_SHOP' });
+      else if (action === 'restock' && data.item) {
+        const pack: PackSize = data.pack === 'small' ? 'small' : 'big';
+        adapter.dispatch({ type: 'RESTOCK', item: data.item, pack });
+      }
       else if (action === 'unlock' && data.id && (data.kind === 'tea' || data.kind === 'topping')) {
         adapter.dispatch({ type: 'UNLOCK_ITEM', kind: data.kind, id: data.id });
       }

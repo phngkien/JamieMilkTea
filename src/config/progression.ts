@@ -32,6 +32,12 @@ export const DAYS: DayConfig[] = [
   { day: 3, customers: 14, firstArrivalMs: 1500, patienceSeconds: 80, twoCupChance: 0.15, toppingCountWeights: [2, 5, 3], doubleScoopChance: 0.3 },
   { day: 4, customers: 16, firstArrivalMs: 1500, patienceSeconds: 75, twoCupChance: 0.2, toppingCountWeights: [2, 5, 3], doubleScoopChance: 0.3 },
   { day: 5, customers: 18, firstArrivalMs: 1500, patienceSeconds: 70, twoCupChance: 0.25, toppingCountWeights: [2, 4, 4], doubleScoopChance: 0.35 },
+  // Từ ngày 6: số khách giữ nguyên, order phức tạp hơn và khách ít kiên nhẫn hơn
+  { day: 6, customers: 18, firstArrivalMs: 1500, patienceSeconds: 68, twoCupChance: 0.28, toppingCountWeights: [2, 4, 4], doubleScoopChance: 0.38 },
+  { day: 7, customers: 18, firstArrivalMs: 1500, patienceSeconds: 66, twoCupChance: 0.3, toppingCountWeights: [1, 4, 5], doubleScoopChance: 0.4 },
+  { day: 8, customers: 18, firstArrivalMs: 1500, patienceSeconds: 64, twoCupChance: 0.32, toppingCountWeights: [1, 4, 5], doubleScoopChance: 0.42 },
+  { day: 9, customers: 18, firstArrivalMs: 1500, patienceSeconds: 62, twoCupChance: 0.34, toppingCountWeights: [1, 3, 6], doubleScoopChance: 0.44 },
+  { day: 10, customers: 18, firstArrivalMs: 1500, patienceSeconds: 60, twoCupChance: 0.35, toppingCountWeights: [1, 3, 6], doubleScoopChance: 0.45 },
 ];
 
 /** Khách đầu tiên của ngày 1 (lúc có hướng dẫn) kiên nhẫn lâu hơn. */

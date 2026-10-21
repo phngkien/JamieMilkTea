@@ -67,6 +67,8 @@ export function actionStation(action: Action): Station | null {
     case 'RESTOCK':
     case 'UNLOCK_ITEM':
     case 'BUY_UPGRADE':
+    // Buổi sáng: người giữ trạm Kho chuẩn bị hàng rồi bấm "Mở cửa"
+    case 'OPEN_SHOP':
       return 'stock';
     case 'DISCARD_CUP':
     case 'PASS_CUP':

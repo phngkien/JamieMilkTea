@@ -61,7 +61,7 @@ export class LocalAdapter implements NetAdapter {
   update(dtMs: number): void {
     this.apply([{ type: 'TICK', dt: Math.min(dtMs, MAX_TICK_MS) }]);
     const hostActions = planHostActions(this.state).map((a) =>
-      a.type === 'END_DAY' ? { ...a, names: { [SOLO_ID]: this.name || UI_TEXT.staffName } } : a,
+      a.type === 'END_DAY' ? { ...a, names: { [SOLO_ID]: this.name || UI_TEXT.staffName }, manager: SOLO_ID } : a,
     );
     if (hostActions.length > 0) this.apply(hostActions);
   }

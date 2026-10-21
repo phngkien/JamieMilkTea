@@ -3,7 +3,7 @@ import { emptyStaffDay } from '../src/core/economy';
 import { LEDGER_LIMIT, buyOutfit, createProfile, creditProfile, ledgerKey, wearOutfit } from '../src/core/profile';
 import { reduce } from '../src/core/reducer';
 import type { StaffDay } from '../src/core/types';
-import { createSave, defaultSettings, migrate, restoreShop, shopSaveOf, type ShopSave } from '../src/save/schema';
+import { SCHEMA_VERSION, createSave, defaultSettings, migrate, restoreShop, shopSaveOf, type ShopSave } from '../src/save/schema';
 import { profileFromCloud, profileToCloud, resolveProfile, resolveShop, shopFromCloud, shopToCloud } from '../src/save/sync';
 import { stateWithCustomer } from './helpers';
 
@@ -168,7 +168,7 @@ describe('nâng cấp bản lưu 1 → 2', () => {
       settings: { muted: true, playerName: 'Jamie' },
     };
     const save = migrate(v1);
-    expect(save?.schemaVersion).toBe(2);
+    expect(save?.schemaVersion).toBe(SCHEMA_VERSION);
     expect(save?.shop.day).toBe(5);
     expect(save?.shop.cash).toBe(1_234_000);
     expect(save?.shop.shopName).toBe("Jamie's Milk Tea");

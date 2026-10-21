@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CREDIT,
   START_CASH,
   STOCK_ICE,
   STOCK_SUGAR,
@@ -66,7 +67,7 @@ describe('inventory', () => {
     ]);
     expect(after.state.stock[stockIdOfTopping('jelly')]).toBe(0);
     expect(after.events.at(-1)).toEqual({ type: 'rejected', action: 'ADD_TOPPING', reason: 'outOfStock' });
-    expect(consume({ a: 0 }, 'a')).toBeNull();
+    expect(consume({ stock: { a: 0 }, lots: {} }, 'a')).toBeNull();
   });
 
   it('hết trà thì không rót được vào ly rỗng', () => {
@@ -79,18 +80,18 @@ describe('inventory', () => {
     expect(events.at(-1)).toEqual({ type: 'rejected', action: 'POUR_TEA', reason: 'outOfStock' });
   });
 
-  it('nhập hàng: trừ két, cộng tồn, ghi chi phí nhập hàng', () => {
+  it('nhập hàng buổi sáng: trừ két, cộng tồn, ghi chi phí nhập hàng', () => {
     const def = getStockDef(stockIdOfCup('M'));
-    const start = createShopState(1);
+    const start: ShopState = { ...createShopState(1), phase: 'prep' };
     const { state, events } = run(start, [{ type: 'RESTOCK', item: def.id }]);
     expect(state.cash).toBe(START_CASH - def.packPrice);
     expect(state.stock[def.id]).toBe(start.stock[def.id] + def.packSize);
     expect(state.today.restock).toBe(def.packPrice);
-    expect(events[0]).toEqual({ type: 'restocked', item: def.id, amount: def.packSize, price: def.packPrice });
+    expect(events[0]).toEqual({ type: 'restocked', item: def.id, amount: def.packSize, price: def.packPrice, rush: false });
   });
 
-  it('không đủ tiền thì không nhập được', () => {
-    const state = { ...createShopState(1), cash: 1000 };
+  it('hết tiền và hết hạn mức mua chịu thì không nhập được', () => {
+    const state: ShopState = { ...createShopState(1), phase: 'prep', cash: 1000, debt: CREDIT.limit };
     const r = reduce(state, { type: 'RESTOCK', item: stockIdOfCup('M') });
     expect(r.events[0]).toEqual({ type: 'rejected', action: 'RESTOCK', reason: 'noMoney' });
     expect(r.state).toBe(state);
@@ -108,7 +109,7 @@ describe('inventory', () => {
     expect(state.cash).toBe(START_CASH - 150_000);
     expect(state.today.unlock).toBe(150_000);
     expect(state.cups[0].toppings).toEqual([{ id: 'pudding', scoops: 1 }]);
-    expect(state.stock[stockIdOfTopping('pudding')]).toBe(getStockDef(stockIdOfTopping('pudding')).packSize - 1);
+    expect(state.stock[stockIdOfTopping('pudding')]).toBe(getStockDef(stockIdOfTopping('pudding')).smallSize - 1);
   });
 
   it('mở khóa bị chặn: chưa tới ngày, thiếu tiền, đã mở rồi', () => {

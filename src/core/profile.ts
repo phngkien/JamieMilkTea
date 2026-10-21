@@ -72,6 +72,7 @@ export function creditProfile(
     streak: staff.streak,
     bestStreak: Math.max(staff.bestStreak, before.bestStreak),
     excellent: Math.max(staff.excellent, before.excellent),
+    manage: Math.max(staff.manage, before.manage),
   };
   for (const s of STATIONS) {
     merged.cups[s] = Math.max(staff.cups[s], before.cups[s]);
